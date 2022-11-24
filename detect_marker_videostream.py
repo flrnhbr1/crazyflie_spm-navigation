@@ -65,7 +65,7 @@ def print_markerinfo_on_image(img, corners, distance, id):
 def main():
     # load calibration-data for markers
     with open('./calibrate_camera/calibration.yaml') as f:
-        loadeddict = yaml.load(f)
+        loadeddict = yaml.safe_load(f)
         mtx = loadeddict.get('camera_matrix')
         dist = loadeddict.get('dist_coeff')
         matrix = np.array(mtx)
