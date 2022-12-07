@@ -1,6 +1,4 @@
 
 .DS_Store
-.idea/vcs.xml
-.idea/modules.xml
 *.xml
 .idea/crazyflie_spm-navigation.iml
