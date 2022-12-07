@@ -1,9 +1,12 @@
 import argparse
-import socket, struct, time
-import numpy as np
-import yaml
+import socket
+import struct
+import time
+
 import cv2
 import cv2.aruco as aruco
+import numpy as np
+import yaml
 
 CAMERA_OFFSET = 0
 

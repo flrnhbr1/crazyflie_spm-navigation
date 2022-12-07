@@ -40,5 +40,5 @@ if __name__ == '__main__':
 
         print("Both decks detected :)")
 
-        # take_off_simple(scf)
+        take_off_simple(scf)
         print("TAKEOFF")
