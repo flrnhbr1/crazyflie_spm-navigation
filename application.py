@@ -20,7 +20,7 @@ from cflib.utils import uri_helper
 import cv2
 import cv2.aruco as aruco
 
-LOW_BAT = 2.8  # if the cf reaches this battery voltage level, it should land
+LOW_BAT = 3.5  # if the cf reaches this battery voltage level, it should land
 TAKEOFF_HEIGHT = 1
 URI = uri_helper.uri_from_env(default='radio://0/100/2M/E7E7E7E701')
 
@@ -176,7 +176,7 @@ class CF:
         self.mc.land(velocity=0.2)
 
     def turn_left(self, degrees):
-        self.mc.turn_left(degrees, rate=22.5)
+        self.mc.turn_left(degrees, rate=45)
 
 
 if __name__ == "__main__":
@@ -244,10 +244,10 @@ if __name__ == "__main__":
         print("Battery-level OK [Voltage = " + str(round(v_bat, 2)) + "V]")
         crazyflie.takeoff(0.5)
         print("crazyflie taking off!")
-        time.sleep(2)
+        time.sleep(1)
         spm_stack = []
         count = 0
-        while count < 100:
+        while count < 50:
             crazyflie.turn_left(3.6)
             fetch_image()
             count += 1

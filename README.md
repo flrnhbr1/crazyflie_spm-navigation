@@ -2,20 +2,31 @@
  
  The following python packages must be installed
 
- - numpy:
+#### numpy:
 
-        $ pip install numpy
+        pip install numpy
 
- - yaml:
+#### yaml:
+- Ubuntu 20.04
 
-         $ pip install yaml (Ubuntu 20.04)
-         $ pip install pyyaml (MacOS)
+         pip install yaml
+- macOS
 
- - opencv contrib for aruco markers
+         pip install pyyaml
 
-        $ pip install opencv-contrib-python
+#### opencv for image processing:
 
- - crazyflie-lib-python
+        pip install opencv-python
 
-         See https://github.com/bitcraze/crazyflie-lib-python for source and installation guide
+#### opencv contrib for aruco markers:
+
+        pip install opencv-contrib-python
+
+#### crazyflie-lib-python:
+
+         git clone https://github.com/bitcraze/crazyflie-lib-python.git
+         cd crazyflie-lib-python
+         pip install -e .
+ 
+#### For detailed install information see: https://github.com/bitcraze/crazyflie-lib-python
         
