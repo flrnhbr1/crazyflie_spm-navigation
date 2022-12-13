@@ -203,6 +203,13 @@ class CF:
         # z = up/down
         self.mc.move_distance(x, y, z, velocity=0.1)
 
+    def start_moving(self, vel_x, vel_y, vel_z):
+        # cf starts moving in straight line, must be ended with stop or redefinition
+        # vel_x = velocity forward/backward
+        # vel_y = velocity left/right
+        # vel_z = velocity up/down
+        self.mc.start_linear_motion(vel_x, vel_y, vel_z)
+
 
 if __name__ == "__main__":
     # Arguments for setting IP/port of AI-deck. Default settings are for when
@@ -281,12 +288,13 @@ if __name__ == "__main__":
         t1 = threading.Thread(target=fetch_image)
         t1.start()
         time.sleep(1)
-        while distance > 70:
+        crazyflie.start_moving(0.5,0,0)
+        while distance > 90:
             print(distance)
-            crazyflie.move(x=0.01, y=0, z=0)
+            # crazyflie.move(x=0.05, y=0, z=0)
             cv2.imshow('spm detection', image)
             cv2.waitKey(1)
-
+        crazyflie.stop()
         crazyflie.land()
         stop_thread_flag = True
         t1.join()
