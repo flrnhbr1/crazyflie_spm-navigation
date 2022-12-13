@@ -25,7 +25,7 @@ client_socket.connect((deck_ip, deck_port))
 print("Socket connected")
 
 # load calibration-data for markers
-with open('../calibrate_camera/calibration.yaml') as f:
+with open('/Users/florianhuber/Documents/Uni/Bachelor_Thesis/crazyflie_spm-navigation/calibrate_camera/calibration.yaml') as f:
     loadeddict = yaml.safe_load(f)
     mtx = loadeddict.get('camera_matrix')
     dist = loadeddict.get('dist_coeff')
@@ -106,7 +106,8 @@ def main():
             else:
                 # JPEG encoded image format streamed
                 # stores the image temporary in the path
-                with open("../wifi_streaming/imgBuffer/img.jpeg", "wb") as f:
+                with open("/Users/florianhuber/Documents/Uni/Bachelor_Thesis/crazyflie_spm-navigation/wifi_streaming"
+                          "/imgBuffer/img.jpeg", "wb") as f:
                     f.write(img_stream)
                 np_arr = np.frombuffer(img_stream, np.uint8)
                 img_gray = cv2.imdecode(np_arr, cv2.IMREAD_UNCHANGED)
