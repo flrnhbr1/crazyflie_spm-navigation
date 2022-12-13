@@ -271,6 +271,7 @@ if __name__ == "__main__":
         # Now start the crazyflie!
         print("All initial checks done!")
         print("crazyflie taking off!")
+        crazyflie.takeoff(0.3)
         time.sleep(1)
         # init distance whit '999'
         distance = 999
