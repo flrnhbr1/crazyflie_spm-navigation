@@ -81,8 +81,8 @@ def print_marker_info_on_image(img, corners, dist, id):
 def fetch_image():
     # Get the info
     while True:
-        global stop_thread
-        if stop_thread:
+        global stop_thread_flag
+        if stop_thread_flag:
             break
         packet_info_raw = rx_bytes(4)
         [length, _, _] = struct.unpack('<HBB', packet_info_raw)
@@ -178,16 +178,30 @@ class CF:
 
     def takeoff(self, height):
         # cf takes of "height" meter
-        self.mc.take_off(height=height, velocity=0.2)
+        self.mc.take_off(height=height, velocity=0.1)
+
+    def stop(self):
+        # cf stops any motion and hovers
+        self.mc.stop()
 
     def land(self):
-        self.mc.land(velocity=0.2)
+        # cf lands
+        self.mc.land(velocity=0.1)
 
     def turn_left(self, degrees):
+        # cf starts yaw to left 'degrees'
         self.mc.turn_left(degrees, rate=45)
 
-    def forward(self, distance_meter):
-        self.mc.forward(distance_meter, velocity=0.05)
+    def turn_right(self, degrees):
+        # cf starts yaw to right 'degrees'
+        self.mc.turn_right(degrees, rate=45)
+
+    def move(self, x, y, z):
+        # cf moves in straight line
+        # x = forward/backward
+        # y = left/right
+        # z = up/down
+        self.mc.move_distance(x, y, z, velocity=0.1)
 
 
 if __name__ == "__main__":
@@ -255,22 +269,23 @@ if __name__ == "__main__":
 
         # All checks done
         # Now start the crazyflie!
-        print("All initial checks done.")
+        print("All initial checks done!")
         print("crazyflie taking off!")
         time.sleep(1)
-        # init distance wit '999'
+        # init distance whit '999'
         distance = 999
         image = None
         # flag to stop the image-thread
-        stop_thread = False
+        stop_thread_flag = False
         t1 = threading.Thread(target=fetch_image)
         t1.start()
         time.sleep(1)
         while distance > 70:
             print(distance)
-            crazyflie.forward(0.01)
+            crazyflie.move(x=0.01, y=0, z=0)
             cv2.imshow('spm detection', image)
             cv2.waitKey(1)
-        stop_thread = True
-        t1.join()
+
         crazyflie.land()
+        stop_thread_flag = True
+        t1.join()
