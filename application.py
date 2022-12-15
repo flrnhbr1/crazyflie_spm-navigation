@@ -81,6 +81,8 @@ def print_marker_info_on_image(img, corners, dist, id):
 def fetch_image():
     # Get the info
     while True:
+        global image
+        global r_vec, t_vec
         global stop_thread_flag
         if stop_thread_flag:
             break
@@ -112,7 +114,7 @@ def fetch_image():
                 img_gray = cv2.imdecode(np_arr, cv2.IMREAD_UNCHANGED)
 
             # img_color is only used for showing on screen
-            img_color = cv2.cvtColor(img_gray, cv2.COLOR_BayerBG2BGRA)
+            image = cv2.cvtColor(img_gray, cv2.COLOR_BayerBG2BGRA)
             corners, ids = marker_detection(img_gray)
             if corners is not None:
                 i = 0
@@ -120,12 +122,9 @@ def fetch_image():
                     r_vec, t_vec, _ = aruco.estimatePoseSingleMarkers(c, marker_size, matrix, distortion)
                     global distance
                     distance = t_vec[0, 0, 2]
-                    img_color = print_marker_info_on_image(img_color, c[0], distance, ids[i])
-                    global image
-                    image = img_color
+                    image = print_marker_info_on_image(image, c[0], distance, ids[i])
+                    cv2.drawFrameAxes(image, matrix, distortion, r_vec, t_vec, 10, 5)
                     i += 1
-            # cv2.imshow('spm detection', img_color)
-            # cv2.waitKey(1)
 
 
 class SPM:
@@ -161,6 +160,21 @@ class CF:
         self.v_bat, self.psi, self.theta, self.phi = get_cf_data()
         self.scf = scf
         self.mc = MotionCommander(scf)
+
+    def decks_attached(self):
+        # detects if extension decks are connected
+        flow_deck_attached = self.scf.cf.param.get_value(complete_name='deck.bcFlow2', timeout=5)
+        ai_deck_attached = self.scf.cf.param.get_value(complete_name='deck.bcAI', timeout=5)
+        return_code = True
+        if flow_deck_attached == 0:
+            print("No flow deck detected!")
+            return_code = False
+
+        if ai_deck_attached == 0:
+            print("No ai deck detected!")
+            return_code = False
+
+        return return_code
 
     def get_battery_level(self):
         # check current battery voltage of cf
@@ -212,15 +226,15 @@ class CF:
 
 
 if __name__ == "__main__":
-    # Arguments for setting IP/port of AI-deck. Default settings are for when
+    # Arguments for setting IP/port of AI deck. Default settings are for when
     parser = argparse.ArgumentParser(description='Connect to AI-deck JPEG streamer example')
     parser.add_argument("-n", default="192.168.4.1", metavar="ip", help="AI-deck IP")
     parser.add_argument("-p", type=int, default='5000', metavar="port", help="AI-deck port")
     args = parser.parse_args()
-
     deck_port = args.p
     deck_ip = args.n
 
+    # connect the AI deck
     print("Connecting to socket on {}:{}...".format(deck_ip, deck_port))
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.connect((deck_ip, deck_port))
@@ -234,6 +248,7 @@ if __name__ == "__main__":
         matrix = np.array(mtx)
         distortion = np.array(dis)
         marker_size = 20  # size in cm
+    print("Camera calibration loaded")
 
     imgdata = None
     data_buffer = bytearray()
@@ -254,47 +269,44 @@ if __name__ == "__main__":
         print("crazyflie initialized!")
 
         # check if extensions decks are connected
-        flow_deck_attached = scf.cf.param.get_value(complete_name='deck.bcFlow2', timeout=5)
-        ai_deck_attached = scf.cf.param.get_value(complete_name='deck.bcAI', timeout=5)
-
-        if flow_deck_attached == 0:
-            print('No flow deck detected!')
+        if not crazyflie.decks_attached():
             sys.exit(1)
 
-        if ai_deck_attached == 0:
-            print('No ai deck detected!')
-            sys.exit(1)
-
-        print("Flow deck and ai deck detected")
+        print("Flow deck and ai deck connected")
 
         # check battery level
         v_bat = crazyflie.get_battery_level()
         if v_bat < LOW_BAT:
             print("Battery-level too low [Voltage = " + str(round(v_bat, 2)) + "V]")
             sys.exit(1)
+
         print("Battery-level OK [Voltage = " + str(round(v_bat, 2)) + "V]")
 
         # All checks done
         # Now start the crazyflie!
         print("All initial checks done!")
         print("crazyflie taking off!")
-        crazyflie.takeoff(0.3)
+       # crazyflie.takeoff(0.3)
         time.sleep(1)
         # init distance whit '999'
         distance = 999
         image = None
+        r_vec = None
+        t_vec = None
         # flag to stop the image-thread
         stop_thread_flag = False
         t1 = threading.Thread(target=fetch_image)
         t1.start()
         time.sleep(1)
-        crazyflie.start_moving(0.5,0,0)
-        while distance > 90:
-            print(distance)
-            # crazyflie.move(x=0.05, y=0, z=0)
+        
+        #crazyflie.start_moving(0.5, 0, 0)
+        while image is not None and distance > 1:
+            print("R= " + str(r_vec) + "____T= " + str(t_vec))
             cv2.imshow('spm detection', image)
             cv2.waitKey(1)
-        crazyflie.stop()
-        crazyflie.land()
+
+        #crazyflie.stop()
+        #crazyflie.land()
+        #client_socket.close()
         stop_thread_flag = True
         t1.join()

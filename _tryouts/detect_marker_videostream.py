@@ -32,7 +32,6 @@ with open('/Users/florianhuber/Documents/Uni/Bachelor_Thesis/crazyflie_spm-navig
     matrix = np.array(mtx)
     distortion = np.array(dist)
     marker_size = 20  # size in cm
-
 imgdata = None
 data_buffer = bytearray()
 
@@ -121,9 +120,11 @@ def main():
                     r_vec, t_vec, _ = aruco.estimatePoseSingleMarkers(c, marker_size, matrix, distortion)
                     distance = t_vec[0, 0, 2] - CAMERA_OFFSET
                     img_color = print_markerinfo_on_image(img_color, c[0], distance, ids[i])
+                    cv2.drawFrameAxes(img_color, matrix, distortion, r_vec, t_vec, 5)
                     i += 1
             cv2.imshow('spm detection', img_color)
             cv2.waitKey(1)
+
 
 
 if __name__ == "__main__":
