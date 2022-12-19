@@ -27,6 +27,11 @@ URI = uri_helper.uri_from_env(default='radio://0/100/2M/E7E7E7E701')
 
 
 def get_cf_data():
+    """
+    fetches logging information from the crazyflie
+    :return: battery level and current yaw, pitch, roll values
+    """
+
     # fetch parameter data from cf and extract information
     with SyncLogger(scf, log_stabilizer) as logger:
         # logger.connect()
@@ -41,13 +46,26 @@ def get_cf_data():
 
 
 def rx_bytes(size):
+    """
+    fetches data from the AI deck over wi-fi
+    :param size: size of data segment to fetch
+    :return: the received data in a bytearray
+    """
+
     data = bytearray()
     while len(data) < size:
         data.extend(client_socket.recv(size - len(data)))
     return data
 
 
-def marker_detection(img):  # define aruco dictionary and parameters (parameters are default)
+def marker_detection(img):
+    """
+    function detects square planar marker from an image
+    :param img: image with marker
+    :return: corner coordinates and the ids of the found markers
+    """
+
+    # define aruco dictionary and parameters (parameters are default)
     ar_dic = aruco.Dictionary_get(aruco.DICT_ARUCO_ORIGINAL)  # (aruco.DICT_6X6_1000)
     ar_par = aruco.DetectorParameters_create()
 
@@ -60,6 +78,15 @@ def marker_detection(img):  # define aruco dictionary and parameters (parameters
 
 
 def print_marker_info_on_image(img, corners, dist, id):
+    """
+    function to print a rectangle and text on the image
+    :param img: input image with marker
+    :param corners: corner coordinates of the marker
+    :param dist: distance of the marker
+    :param id: id of the marker
+    :return: image with printed info
+    """
+
     # save corners in array
     pts = np.array([[int(corners[0, 0]), int(corners[0, 1])], [int(corners[1, 0]), int(corners[1, 1])],
                     [int(corners[2, 0]), int(corners[2, 1])], [int(corners[3, 0]), int(corners[3, 1])]], np.int32)
@@ -79,6 +106,10 @@ def print_marker_info_on_image(img, corners, dist, id):
 
 
 def fetch_image():
+    """
+    function to fetch image from the AI deck, detect markers and print useful info on the image
+    :return: -
+    """
     # Get the info
     while True:
         global image
@@ -152,7 +183,10 @@ class CF:
     """
 
     def __init__(self, scf):
-        # constructor
+        """
+        constructor for a crazyflie object
+        :param scf: id of SyncCrazyflie
+        """
 
         # psi --> yaw
         # theta --> pitch
@@ -162,6 +196,12 @@ class CF:
         self.mc = MotionCommander(scf)
 
     def decks_attached(self):
+        """
+        function checks if AI and flow deck are attached
+        :return:    True if both decks are attached
+                    False is at least one deck is not detected
+        """
+
         # detects if extension decks are connected
         flow_deck_attached = self.scf.cf.param.get_value(complete_name='deck.bcFlow2', timeout=5)
         ai_deck_attached = self.scf.cf.param.get_value(complete_name='deck.bcAI', timeout=5)
@@ -177,6 +217,11 @@ class CF:
         return return_code
 
     def get_battery_level(self):
+        """
+        fetches battery level from crazyflie
+        :return: battery voltage in V
+        """
+
         # check current battery voltage of cf
         voltage, _, _, _ = get_cf_data()
         time.sleep(0.02)
@@ -184,6 +229,11 @@ class CF:
         return voltage
 
     def get_yaw(self):
+        """
+        fetches battery level from crazyflie
+        :return: yaw angle in degrees
+        """
+
         # returns current yaw
         _, yaw, _, _ = get_cf_data()
         time.sleep(0.02)
@@ -191,37 +241,66 @@ class CF:
         return yaw
 
     def takeoff(self, height):
-        # cf takes of "height" meter
+        """
+        lets the crazyflie takeoff
+        :param height: height to which the crazyflie should takeoff
+        :return: -
+        """
+
         self.mc.take_off(height=height, velocity=0.1)
 
     def stop(self):
-        # cf stops any motion and hovers
+        """
+        cf stops any motion and hovers
+        :return: -
+        """
         self.mc.stop()
 
     def land(self):
-        # cf lands
+        """
+        crazyflie lands
+        :return: -
+        """
+
         self.mc.land(velocity=0.1)
 
     def turn_left(self, degrees):
-        # cf starts yaw to left 'degrees'
+        """
+        crazyflie starts yaw to left
+        :param degrees: amount of degrees to turn
+        :return: -
+        """
+
         self.mc.turn_left(degrees, rate=45)
 
     def turn_right(self, degrees):
-        # cf starts yaw to right 'degrees'
+        """
+        crazyflie starts yaw to left
+        :param degrees: amount of degrees to turn
+        :return: -
+        """
         self.mc.turn_right(degrees, rate=45)
 
     def move(self, x, y, z):
-        # cf moves in straight line
-        # x = forward/backward
-        # y = left/right
-        # z = up/down
+        """
+        crazyflie moves in straight line
+        :param x: forward/backward
+        :param y: left/right
+        :param z: up/down
+        :return: -
+        """
+
         self.mc.move_distance(x, y, z, velocity=0.1)
 
     def start_moving(self, vel_x, vel_y, vel_z):
-        # cf starts moving in straight line, must be ended with stop or redefinition
-        # vel_x = velocity forward/backward
-        # vel_y = velocity left/right
-        # vel_z = velocity up/down
+        """
+        crazyflie moves in straight line
+        :param vel_x: velocity forward/backward
+        :param vel_y: velocity left/right
+        :param vel_z: velocity up/down
+        :return: -
+        """
+
         self.mc.start_linear_motion(vel_x, vel_y, vel_z)
 
 
