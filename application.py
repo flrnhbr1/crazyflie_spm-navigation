@@ -1,4 +1,5 @@
 import logging
+import math
 import sys
 import time
 import argparse
@@ -21,8 +22,9 @@ from cflib.utils import uri_helper
 import cv2
 import cv2.aruco as aruco
 
+# set constants
 LOW_BAT = 3.5  # if the cf reaches this battery voltage level, it should land
-TAKEOFF_HEIGHT = 1
+TAKEOFF_HEIGHT = 0.5
 URI = uri_helper.uri_from_env(default='radio://0/100/2M/E7E7E7E701')
 
 
@@ -58,11 +60,11 @@ def rx_bytes(size):
     return data
 
 
-def marker_detection(img):
+def detect_marker(img):
     """
     function detects square planar marker from an image
     :param img: image with marker
-    :return: corner coordinates and the ids of the found markers
+    :return: id and corner coordinates of markers
     """
 
     # define aruco dictionary and parameters (parameters are default)
@@ -72,48 +74,98 @@ def marker_detection(img):
     # detect aruco markers
     (corners, ids, rejected) = aruco.detectMarkers(img, ar_dic, parameters=ar_par)
 
-    # return coordinates of all markers and their ids
-    if corners is not None:
-        return corners, ids
+    return ids, corners
 
 
-def print_marker_info_on_image(img, corners, dist, id):
+def estimate_marker_pose(corners):
     """
-    function to print a rectangle and text on the image
+    Estimates the pose of a square planar marker
+    :param corners: corner coordinates of the marker
+    :return: rotation and translation vector of the marker + euler angles of the marker
+    """
+
+    # estimate translation and rotation vector of marker
+    r_vec, t_vec, _ = aruco.estimatePoseSingleMarkers(corners, marker_size, matrix, distortion)
+    # transform rotation vector to euler angles
+    eul_angles = rotation_vector_to_euler_angles(r_vec)
+
+    return t_vec, r_vec, eul_angles
+
+
+def rotation_vector_to_euler_angles(r_vec):
+    """
+    Transforms the rotation vector to the euler angles
+    :param r_vec: rotation vector of the marker
+    :return: euler angles [alpha, beta, gamma]
+             alpha: rotation around the left/right axis
+             beta:  rotation around the up/down axis
+             gamma: rotation around the forward/backward axis
+    """
+    r_matrix, _ = cv2.Rodrigues(r_vec)
+    sy = math.sqrt(r_matrix[0, 0] * r_matrix[0, 0] + r_matrix[1, 0] * r_matrix[1, 0])
+
+    singular = sy < 1e-6
+
+    if not singular:
+        x = math.atan2(r_matrix[2, 1], r_matrix[2, 2])
+        y = math.atan2(-r_matrix[2, 0], sy)
+        z = math.atan2(r_matrix[1, 0], r_matrix[0, 0])
+    else:
+        x = math.atan2(-r_matrix[1, 2], r_matrix[1, 1])
+        y = math.atan2(-r_matrix[2, 0], sy)
+        z = 0
+
+    if x <= 0:
+        x += math.pi
+
+    else:
+        x -= math.pi
+
+    return np.array([x, y, z])
+
+
+def print_marker_info_on_image(img, corners, marker_id, mtrx, dist, t_vec, r_vec, eul_angles):
+    """
+    function to print a rectangle, axis and text to the marker
+    :param eul_angles:
     :param img: input image with marker
     :param corners: corner coordinates of the marker
-    :param dist: distance of the marker
-    :param id: id of the marker
+    :param marker_id: id of the marker
+    :param mtrx: camera calibration matrix
+    :param dist: camera calibration distortion coefficients
+    :param r_vec: rotation vector of the marker
+    :param t_vec: translation vector marker
     :return: image with printed info
     """
 
+    # convert to colored image
+    img = cv2.cvtColor(img, cv2.COLOR_BayerBG2BGRA)
+
+    font = cv2.FONT_HERSHEY_SIMPLEX
     # save corners in array
     pts = np.array([[int(corners[0, 0]), int(corners[0, 1])], [int(corners[1, 0]), int(corners[1, 1])],
                     [int(corners[2, 0]), int(corners[2, 1])], [int(corners[3, 0]), int(corners[3, 1])]], np.int32)
     pts = pts.reshape((-1, 1, 2))
-    # print polygon over aruco marker
+    # print polygon over marker
     cv2.polylines(img, [pts], True, (255, 0, 0), 3)
-    # print distance between camera and marker on image
-    dist = round(dist, 2)
-    text_dist = str(dist) + "cm"
-    text_id = "ID = " + str(id)
-    cv2.putText(img, text_dist, (int(corners[1, 0]), int(corners[1, 1]) - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                (255, 0, 0), 2, cv2.LINE_AA)
-    cv2.putText(img, text_id, (int(corners[1, 0]), int(corners[1, 1]) - 40), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                (255, 0, 0),
-                2, cv2.LINE_AA)
+    # print translation vector and euler angles
+    cv2.putText(img, "marker id = " + str(marker_id), (10, 10), font, 0.4, (255, 0, 0), 2, cv2.LINE_AA)
+    cv2.putText(img, "t_vec= " + str(t_vec[0, 0]) + " -->[tx ty tz]", (10, 30), font, 0.4, (255, 0, 0), 2, cv2.LINE_AA)
+    cv2.putText(img, "eul_angles= " + str(eul_angles) + " -->[a b y]", (10, 50), font, 0.4, (255, 0, 0), 2, cv2.LINE_AA)
+    # print axis to marker
+    cv2.drawFrameAxes(img, mtrx, dist, r_vec, t_vec, 10, 5)
+
     return img
 
 
 def fetch_image():
     """
-    function to fetch image from the AI deck, detect markers and print useful info on the image
-    :return: -
+    function to fetch image from the AI deck
+    :return: saves the captured image in the global variable 'image'
     """
     # Get the info
     while True:
         global image
-        global r_vec, t_vec
         global stop_thread_flag
         if stop_thread_flag:
             break
@@ -144,37 +196,22 @@ def fetch_image():
                 np_arr = np.frombuffer(img_stream, np.uint8)
                 img_gray = cv2.imdecode(np_arr, cv2.IMREAD_UNCHANGED)
 
-            # img_color is only used for showing on screen
-            image = cv2.cvtColor(img_gray, cv2.COLOR_BayerBG2BGRA)
-            corners, ids = marker_detection(img_gray)
-            if corners is not None:
-                i = 0
-                for c in corners:
-                    r_vec, t_vec, _ = aruco.estimatePoseSingleMarkers(c, marker_size, matrix, distortion)
-                    global distance
-                    distance = t_vec[0, 0, 2]
-                    image = print_marker_info_on_image(image, c[0], distance, ids[i])
-                    cv2.drawFrameAxes(image, matrix, distortion, r_vec, t_vec, 10, 5)
-                    i += 1
+            # set global variable
+            image = img_gray
 
 
 class SPM:
     """
-    class for square planar markers parameters, functions and methods
+    class for square planar markers objects
     """
 
-    def __init__(self, id):
+    def __init__(self, id, corner, tvec, rvec, yaw_angle):
         # constructor
         self.id = id
-        self.t_vec = None
-        self.r_vec = None
-        self.current_yaw = None
-
-    def save_position(self, t_vec, r_vec, current_yaw):
-        # save positioning data
-        self.t_vec = t_vec
-        self.r_vec = r_vec
-        self.current_yaw = current_yaw
+        self.corners = corner
+        self.t_vec = tvec
+        self.r_vec = rvec
+        self.current_yaw = yaw_angle
 
 
 class CF:
@@ -264,22 +301,20 @@ class CF:
 
         self.mc.land(velocity=0.1)
 
-    def turn_left(self, degrees):
+    def turn(self, degrees):
         """
-        crazyflie starts yaw to left
+        crazyflie turns around
         :param degrees: amount of degrees to turn
+                        if degrees > 0 --> turn right
+                        if degrees < 0 --> turn left
+
         :return: -
         """
+        if degrees > 0:
+            self.mc.turn_right(abs(degrees), rate=45)
 
-        self.mc.turn_left(degrees, rate=45)
-
-    def turn_right(self, degrees):
-        """
-        crazyflie starts yaw to left
-        :param degrees: amount of degrees to turn
-        :return: -
-        """
-        self.mc.turn_right(degrees, rate=45)
+        if degrees < 0:
+            self.mc.turn_left(abs(degrees), rate=45)
 
     def move(self, x, y, z):
         """
@@ -343,6 +378,7 @@ if __name__ == "__main__":
     cflib.crtp.init_drivers(enable_debug_driver=False)
     cf = Crazyflie(rw_cache='./cache')
 
+    # starting the main functionality
     with SyncCrazyflie(URI, cf) as scf:
         crazyflie = CF(scf)
         print("crazyflie initialized!")
@@ -365,27 +401,32 @@ if __name__ == "__main__":
         # Now start the crazyflie!
         print("All initial checks done!")
         print("crazyflie taking off!")
-       # crazyflie.takeoff(0.3)
+        # crazyflie.takeoff(TAKEOFF_HEIGHT)
         time.sleep(1)
-        # init distance whit '999'
-        distance = 999
+
         image = None
-        r_vec = None
-        t_vec = None
+
         # flag to stop the image-thread
         stop_thread_flag = False
         t1 = threading.Thread(target=fetch_image)
         t1.start()
         time.sleep(1)
-        
-        #crazyflie.start_moving(0.5, 0, 0)
-        while image is not None and distance > 1:
-            print("R= " + str(r_vec) + "____T= " + str(t_vec))
-            cv2.imshow('spm detection', image)
-            cv2.waitKey(1)
 
-        #crazyflie.stop()
-        #crazyflie.land()
-        #client_socket.close()
+        while image is not None:
+            for t in range(0, 361):
+                # crazyflie.turn(t)
+                time.sleep(0.1)
+                image_to_print = image
+                marker_ids, marker_corners = detect_marker(image)
+                for i, c in enumerate(marker_corners):
+                    trans_vec, rot_vec, euler_angles = estimate_marker_pose(c)
+                    image_to_print = print_marker_info_on_image(image, c[0], marker_ids[i], matrix,
+                                                                distortion, trans_vec, rot_vec, euler_angles)
+                cv2.imshow('spm detection', image_to_print)
+                cv2.waitKey(1)
+
+        # crazyflie.stop()
+        # crazyflie.land()
+        client_socket.close()
         stop_thread_flag = True
         t1.join()
