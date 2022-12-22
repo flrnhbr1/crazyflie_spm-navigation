@@ -1,5 +1,10 @@
+"""
+Created on 23.11.2022
+
+@author: Florian Huber
+"""
+
 import logging
-import math
 import sys
 import time
 import argparse
@@ -9,7 +14,7 @@ import struct
 import numpy as np
 import threading
 
-# importing cf functions
+# import cf functions
 import cflib.crtp
 from cflib.crazyflie import Crazyflie
 from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
@@ -18,19 +23,23 @@ from cflib.crazyflie.log import LogConfig
 from cflib.positioning.motion_commander import MotionCommander
 from cflib.utils import uri_helper
 
-# importing open cv functions
+# import open cv functions
 import cv2
-import cv2.aruco as aruco
+
+# import square planar marker functions
+import square_planar_marker as spm
 
 # set constants
 LOW_BAT = 3.5  # if the cf reaches this battery voltage level, it should land
 TAKEOFF_HEIGHT = 0.5
+MAX_MARKER_ID = 5
 URI = uri_helper.uri_from_env(default='radio://0/100/2M/E7E7E7E701')
 
 
-def get_cf_data():
+def get_cf_data(scf):
     """
     fetches logging information from the crazyflie
+    :param scf: id of SyncCrazyflie
     :return: battery level and current yaw, pitch, roll values
     """
 
@@ -60,105 +69,7 @@ def rx_bytes(size):
     return data
 
 
-def detect_marker(img):
-    """
-    function detects square planar marker from an image
-    :param img: image with marker
-    :return: id and corner coordinates of markers
-    """
-
-    # define aruco dictionary and parameters (parameters are default)
-    ar_dic = aruco.Dictionary_get(aruco.DICT_ARUCO_ORIGINAL)  # (aruco.DICT_6X6_1000)
-    ar_par = aruco.DetectorParameters_create()
-
-    # detect aruco markers
-    (corners, ids, rejected) = aruco.detectMarkers(img, ar_dic, parameters=ar_par)
-
-    return ids, corners
-
-
-def estimate_marker_pose(corners):
-    """
-    Estimates the pose of a square planar marker
-    :param corners: corner coordinates of the marker
-    :return: rotation and translation vector of the marker + euler angles of the marker
-    """
-
-    # estimate translation and rotation vector of marker
-    r_vec, t_vec, _ = aruco.estimatePoseSingleMarkers(corners, marker_size, matrix, distortion)
-    # transform rotation vector to euler angles
-    eul_angles = transform_r_vec_to_euler_angles(r_vec)
-
-    return t_vec, r_vec, eul_angles
-
-
-def transform_r_vec_to_euler_angles(r_vec):
-    """
-    Transforms the rotation vector to the euler angles
-    :param r_vec: rotation vector of the marker
-    :return: euler angles [alpha, beta, gamma]
-             alpha: rotation around the left/right axis
-             beta:  rotation around the up/down axis
-             gamma: rotation around the forward/backward axis
-    """
-    r_matrix, _ = cv2.Rodrigues(r_vec)
-    sy = math.sqrt(r_matrix[0, 0] * r_matrix[0, 0] + r_matrix[1, 0] * r_matrix[1, 0])
-
-    singular = sy < 1e-6
-
-    if not singular:
-        x = math.atan2(r_matrix[2, 1], r_matrix[2, 2])
-        y = math.atan2(-r_matrix[2, 0], sy)
-        z = math.atan2(r_matrix[1, 0], r_matrix[0, 0])
-    else:
-        x = math.atan2(-r_matrix[1, 2], r_matrix[1, 1])
-        y = math.atan2(-r_matrix[2, 0], sy)
-        z = 0
-
-    if x <= 0:
-        x += math.pi
-
-    else:
-        x -= math.pi
-
-    return np.array([x, y, z])
-
-
-def print_marker_info_on_image(img, corners, marker_id, mtrx, dist, t_vec, r_vec, eul_angles):
-    """
-    function to print a rectangle, axis and text to the marker
-    :param eul_angles:
-    :param img: input image with marker
-    :param corners: corner coordinates of the marker
-    :param marker_id: id of the marker
-    :param mtrx: camera calibration matrix
-    :param dist: camera calibration distortion coefficients
-    :param r_vec: rotation vector of the marker
-    :param t_vec: translation vector marker
-    :return: image with printed info
-    """
-
-    # convert to colored image
-    img = cv2.cvtColor(img, cv2.COLOR_BayerBG2BGRA)
-
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    # save corners in array
-    pts = np.array([[int(corners[0, 0]), int(corners[0, 1])], [int(corners[1, 0]), int(corners[1, 1])],
-                    [int(corners[2, 0]), int(corners[2, 1])], [int(corners[3, 0]), int(corners[3, 1])]], np.int32)
-    pts = pts.reshape((-1, 1, 2))
-    # print polygon over marker
-    cv2.polylines(img, [pts], True, (255, 0, 0), 3)
-    # print translation vector and euler angles
-    cv2.putText(img, "marker id = " + str(marker_id), (10, 10), font, 0.4, (255, 0, 0), 2, cv2.LINE_AA)
-    cv2.putText(img, "t_vec= " + str(t_vec[0, 0]) + " -->[tx ty tz]", (10, 30), font, 0.4, (255, 0, 0), 2, cv2.LINE_AA)
-    cv2.putText(img, "eul_angles= " + str(eul_angles) + " -->[a b y]", (10, 50), font, 0.4, (255, 0, 0), 2, cv2.LINE_AA)
-    # print axis to marker
-    cv2.drawFrameAxes(img, mtrx, dist, r_vec, t_vec, 10, 5)
-
-    return img
-
-
-def fetch_image():
+def get_image_from_ai_deck():
     """
     function to fetch image from the AI deck
     :return: saves the captured image in the global variable 'image'
@@ -172,7 +83,7 @@ def fetch_image():
         packet_info_raw = rx_bytes(4)
         [length, _, _] = struct.unpack('<HBB', packet_info_raw)
         img_header = rx_bytes(length - 2)
-        [magic, _, _, _, format, size] = struct.unpack('<BHHBBI', img_header)
+        [magic, _, _, _, image_format, size] = struct.unpack('<BHHBBI', img_header)
         if magic == 0xBC:
             # Receive the image, this will be split up in packages of some size
             img_stream = bytearray()
@@ -183,7 +94,7 @@ def fetch_image():
                 chunk = rx_bytes(length - 2)
                 img_stream.extend(chunk)
 
-            if format == 0:
+            if image_format == 0:
                 # RAW image format streamed
                 img_gray = np.frombuffer(img_stream, dtype=np.uint8)
                 img_gray.shape = (244, 324)
@@ -191,27 +102,13 @@ def fetch_image():
             else:
                 # JPEG encoded image format streamed
                 # stores the image temporary in this path
-                with open("./wifi_streaming/imgBuffer/img.jpeg", "wb") as f:
-                    f.write(img_stream)
+                with open("./wifi_streaming/imgBuffer/img.jpeg", "wb") as im:
+                    im.write(img_stream)
                 np_arr = np.frombuffer(img_stream, np.uint8)
                 img_gray = cv2.imdecode(np_arr, cv2.IMREAD_UNCHANGED)
 
             # set global variable
             image = img_gray
-
-
-class SPM:
-    """
-    class for square planar markers objects
-    """
-
-    def __init__(self, id, corner, tvec, rvec, yaw_angle):
-        # constructor
-        self.id = id
-        self.corners = corner
-        self.t_vec = tvec
-        self.r_vec = rvec
-        self.current_yaw = yaw_angle
 
 
 class CF:
@@ -228,7 +125,7 @@ class CF:
         # psi --> yaw
         # theta --> pitch
         # phi --> roll
-        self.v_bat, self.psi, self.theta, self.phi = get_cf_data()
+        self.v_bat, self.psi, self.theta, self.phi = get_cf_data(scf)
         self.scf = scf
         self.mc = MotionCommander(scf)
 
@@ -260,7 +157,7 @@ class CF:
         """
 
         # check current battery voltage of cf
-        voltage, _, _, _ = get_cf_data()
+        voltage, _, _, _ = get_cf_data(self.scf)
         time.sleep(0.02)
         self.v_bat = voltage
         return voltage
@@ -272,7 +169,7 @@ class CF:
         """
 
         # returns current yaw
-        _, yaw, _, _ = get_cf_data()
+        _, yaw, _, _ = get_cf_data(self.scf)
         time.sleep(0.02)
         self.psi = yaw
         return yaw
@@ -379,8 +276,8 @@ if __name__ == "__main__":
     cf = Crazyflie(rw_cache='./cache')
 
     # starting the main functionality
-    with SyncCrazyflie(URI, cf) as scf:
-        crazyflie = CF(scf)
+    with SyncCrazyflie(URI, cf) as sync_cf:
+        crazyflie = CF(sync_cf)
         print("crazyflie initialized!")
 
         # check if extensions decks are connected
@@ -404,11 +301,19 @@ if __name__ == "__main__":
         # crazyflie.takeoff(TAKEOFF_HEIGHT)
         time.sleep(1)
 
+        # initialize global variable for image
         image = None
+
+        # marker_geometry is the datastruct for saving the position data of the markers
+        # every marker id gets an entry that is has 6 values
+        #       e.g., marker id = 3
+        #       marker_geometry[3] =   [[t_x t_y t_z]         --> translation vector
+        #                               [alpha beta gamma]]   --> euler angles
+        marker_geometry = np.zeros([MAX_MARKER_ID, 2, 3])
 
         # flag to stop the image-thread
         stop_thread_flag = False
-        t1 = threading.Thread(target=fetch_image)
+        t1 = threading.Thread(target=get_image_from_ai_deck)
         t1.start()
         time.sleep(1)
 
@@ -416,13 +321,18 @@ if __name__ == "__main__":
             for t in range(0, 361):
                 # crazyflie.turn(t)
                 time.sleep(0.1)
-                image_to_print = image
-                marker_ids, marker_corners = detect_marker(image)
+                image_to_process = image
+                marker_ids, marker_corners = spm.detect_marker(img=image_to_process)
+                # convert to colored image for visualization
+                image_to_process = cv2.cvtColor(image_to_process, cv2.COLOR_BayerBG2BGRA)
                 for i, c in enumerate(marker_corners):
-                    trans_vec, rot_vec, euler_angles = estimate_marker_pose(c)
-                    image_to_print = print_marker_info_on_image(image, c[0], marker_ids[i], matrix,
-                                                                distortion, trans_vec, rot_vec, euler_angles)
-                cv2.imshow('spm detection', image_to_print)
+                    trans_vec, rot_vec, euler_angles = spm.estimate_marker_pose(corners=c, mark_size=marker_size,
+                                                                                mtrx=matrix, dist=distortion)
+                    image_to_process = spm.print_marker_info_on_image(img=image_to_process, corners=c[0],
+                                                                      marker_id=marker_ids[i], mtrx=matrix,
+                                                                      dist=distortion, t_vec=trans_vec, r_vec=rot_vec,
+                                                                      eul_angles=euler_angles, index=i)
+                cv2.imshow('spm detection', image_to_process)
                 cv2.waitKey(1)
 
         # crazyflie.stop()
