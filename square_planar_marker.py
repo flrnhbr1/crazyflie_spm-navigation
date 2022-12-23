@@ -14,7 +14,9 @@ def detect_marker(img):
     """
     function detects square planar marker from an image
     :param img: image with marker
-    :return: id and corner coordinates of markers
+    :return: int array[]: ids
+             double array[[]]: corners
+             id and corner coordinates of markers
     """
 
     # define aruco dictionary and parameters (parameters are default)
@@ -34,7 +36,10 @@ def estimate_marker_pose(corners, mark_size, mtrx, dist):
     :param mark_size: size of the marker
     :param mtrx: camera calibration matrix
     :param dist: camera calibration distortion coefficients
-    :return: rotation and translation vector of the marker + euler angles of the marker
+    :return: double array[]: t_vec
+             double array[]: r_vec
+             double array[]: eul_angles
+             translation and rotation vector of the marker + euler angles of the marker
     """
 
     # estimate translation and rotation vector of marker
@@ -57,7 +62,8 @@ def print_marker_info_on_image(img, corners, marker_id, mtrx, dist, t_vec, r_vec
     :param t_vec: translation vector marker
     :param eul_angles: euler angles of the marker
     :param index: index of the marker regarding the number of all detected markers
-    :return: image with printed info
+    :return: image: img
+             image with printed info
     """
 
     font = cv2.FONT_HERSHEY_SIMPLEX
@@ -92,7 +98,8 @@ def transform_r_vec_to_euler_angles(r_vec):
     """
     Transforms the rotation vector to the euler angles
     :param r_vec: rotation vector of the marker
-    :return: euler angles [alpha, beta, gamma]
+    :return: double array[]: euler angles
+             [alpha, beta, gamma]
              alpha: rotation around the left/right axis
              beta:  rotation around the up/down axis
              gamma: rotation around the forward/backward axis

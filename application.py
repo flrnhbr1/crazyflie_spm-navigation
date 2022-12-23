@@ -40,7 +40,11 @@ def get_cf_data(scf):
     """
     fetches logging information from the crazyflie
     :param scf: id of SyncCrazyflie
-    :return: battery level and current yaw, pitch, roll values
+    :return: double: v_bat
+             double: yaw
+             double: pitch
+             double: roll
+             battery level and current yaw, pitch, roll values
     """
 
     # fetch parameter data from cf and extract information
@@ -60,7 +64,8 @@ def rx_bytes(size):
     """
     fetches data from the AI deck over wi-fi
     :param size: size of data segment to fetch
-    :return: the received data in a bytearray
+    :return: bytearray: data
+             the received data in a bytearray
     """
 
     data = bytearray()
@@ -72,7 +77,8 @@ def rx_bytes(size):
 def get_image_from_ai_deck():
     """
     function to fetch image from the AI deck
-    :return: saves the captured image in the global variable 'image'
+    :return: -
+             saves the captured image in the global variable 'image'
     """
     # Get the info
     while True:
@@ -132,8 +138,9 @@ class CF:
     def decks_attached(self):
         """
         function checks if AI and flow deck are attached
-        :return:    True if both decks are attached
-                    False is at least one deck is not detected
+        :return: boolean: return_code
+                 True if both decks are attached
+                 False is at least one deck is not detected
         """
 
         # detects if extension decks are connected
@@ -153,7 +160,8 @@ class CF:
     def get_battery_level(self):
         """
         fetches battery level from crazyflie
-        :return: battery voltage in V
+        :return: double: v_bat
+                 battery voltage in V
         """
 
         # check current battery voltage of cf
@@ -165,7 +173,8 @@ class CF:
     def get_yaw(self):
         """
         fetches battery level from crazyflie
-        :return: yaw angle in degrees
+        :return: double: yaw
+                 angle of yaw in degrees
         """
 
         # returns current yaw
