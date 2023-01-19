@@ -66,8 +66,8 @@ def print_markerinfo_on_image(img, corners, distance, id):
     distance = round(distance, 2)
     text_dist = str(distance) + "cm"
     text_id = "ID = " + str(id)
-    cv2.putText(img, text_dist, (int(corners[1, 0]), int(corners[1, 1]) - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                (255, 0, 0), 2, cv2.LINE_AA)
+    #cv2.putText(img, text_dist, (int(corners[1, 0]), int(corners[1, 1]) - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+     #           (255, 0, 0), 2, cv2.LINE_AA)
     cv2.putText(img, text_id, (int(corners[1, 0]), int(corners[1, 1]) - 40), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0),
                 2, cv2.LINE_AA)
     return img
