@@ -32,10 +32,15 @@ import square_planar_marker as spm
 
 # set constants
 LOW_BAT = 3.0  # if the cf reaches this battery voltage level, it should land
-TAKEOFF_HEIGHT = 0.8
-MAX_MARKER_ID = 0
-DISTANCE_TO_MARKER = 0.1
 URI = uri_helper.uri_from_env(default='radio://0/100/2M/E7E7E7E701')
+
+# default height of takeoff
+TAKEOFF_HEIGHT = 0.8
+# highest used marker id, start from id=0
+# marker type must be aruco original dictionary
+MAX_MARKER_ID = 0
+# define distance crazyflie <--> marker (when moving to marker)
+DISTANCE = np.array([0, 0, 100])  # [cm]
 
 
 def get_cf_data(scf):
@@ -248,7 +253,7 @@ class CF:
         :return: -
         """
 
-        self.mc.back(dist_b,  velocity=0.5)
+        self.mc.back(dist_b, velocity=0.5)
 
     def move(self, x, y, z):
         """
@@ -331,11 +336,8 @@ if __name__ == "__main__":
 
         # initialize global variable for image
         image = None
-        # define distance crazyflie <--> marker (when moving to marker)
-        distance = np.array([0, 0, 100])
         # initialize flag to stop the image-thread
         stop_thread_flag = False
-
         # start thread for image acquisition
         t1 = threading.Thread(target=get_image_from_ai_deck)
         t1.start()
@@ -395,11 +397,11 @@ if __name__ == "__main__":
                     # crazyflie.turn(euler_angles[1] * 180 / math.pi)
 
                     # calculate trajectory vector to marker and magnitude of it
-                    traj = (trans_vec[0, 0] - distance) / 100
+                    traj = (trans_vec[0, 0] - DISTANCE) / 100
                     mag_traj = math.sqrt(traj[0] ** 2 + traj[1] ** 2 + traj[2] ** 2)
 
-                    # control loop
-                    while mag_traj > DISTANCE_TO_MARKER:
+                    # control loop -- approach marker until distance to goal is > 10cm
+                    while mag_traj > 0.1:
                         start_time = time.time()
                         marker_ids, marker_corners = spm.detect_marker(image)
                         if marker_ids is not None:
@@ -412,21 +414,20 @@ if __name__ == "__main__":
                                     cv2.imshow('spm detection', image)
                                     cv2.waitKey(1)
 
-                                    traj = (trans_vec[0, 0] - distance) / 100
+                                    traj = (trans_vec[0, 0] - DISTANCE) / 100
                                     mag_traj = math.sqrt(traj[0] ** 2 + traj[1] ** 2 + traj[2] ** 2)
-                                    direction = traj / (mag_traj*15)
+                                    direction = traj / (mag_traj * 15)
 
                                     # fly a bit towards the marker
                                     crazyflie.move(direction[2], -direction[0], -direction[1])
                                     # turn a bit towards the marker
                                     crazyflie.turn(euler_angles[1] * 180 / (math.pi * 8))
 
-                            print(str(time.time() - start_time))
-                            # print("Distance: " + str(mag_traj))
+                            # print("RTT:" + str(time.time() - start_time))
 
                     crazyflie.stop()  # stop any motion
                     time.sleep(2)
-                    crazyflie.back(1)
+                    crazyflie.back(1)  # backup before searching for next marker
 
                     break
         # when all markers are processed --> land

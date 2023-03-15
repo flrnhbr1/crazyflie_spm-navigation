@@ -42,6 +42,7 @@ pip install numpy
 pip install yaml
 ```
 - macOS
+- 
 ```shell
 pip install pyyaml
 ```
@@ -63,3 +64,34 @@ cd crazyflie-lib-python
 pip install -e .
 ```
 - For detailed install information see: https://github.com/bitcraze/crazyflie-lib-python
+
+
+## Important informations
+
+### Marker
+The square planar markers (spm), that have to be used must meet the following specifications:
+- Marker type: ArUco marker
+- Dictionary: Original ArUco
+- Marker size: 200mm
+
+The markers can be generated with python 
+(see e.g., https://pyimagesearch.com/2020/12/14/generating-aruco-markers-with-opencv-and-python/) 
+or with an online generator (e.g., https://chev.me/arucogen/).
+
+
+### Camera calibration
+In order to use the camera of the AI deck properly, the camera must be calibrated first.
+There are multiple variants to calibrate the camera, the one I used can be downloaded from 
+https://github.com/abakisita/camera_calibration.
+
+After successfully calibrating the camera, the file calibration.yaml 
+is saved. This file has to be referenced afterwards in application.py (see below)
+
+    with open('./calibrate_camera/calibration.yaml') as f:
+        loaded_dict = yaml.safe_load(f)
+        mtx = loaded_dict.get('camera_matrix')
+        dis = loaded_dict.get('dist_coeff')
+        matrix = np.array(mtx)
+        distortion = np.array(dis)
+        marker_size = 20  # size in cm
+    print("Camera calibration loaded")
