@@ -23,10 +23,9 @@ from cflib.positioning.motion_commander import MotionCommander
 from cflib.utils import uri_helper
 
 import cv2
-import csv
 
 # set constants
-LOW_BAT = 3.5  # if the cf reaches this battery voltage level, it should land
+LOW_BAT = 3.0  # if the cf reaches this battery voltage level, it should land
 TAKEOFF_HEIGHT = 0.5
 MAX_MARKER_ID = 3
 URI = uri_helper.uri_from_env(default='radio://0/100/2M/E7E7E7E701')
@@ -304,29 +303,46 @@ if __name__ == "__main__":
         crazyflie.takeoff(1)
         time.sleep(1)
 
-        voltage = ['Voltage']
-        timestamp = ['Time']
+        voltage = []
         start = time.time()
         v_bat = crazyflie.get_battery_level()
         while v_bat > LOW_BAT:
-            v_bat = crazyflie.get_battery_level()
-            print(v_bat)
-            voltage.append(v_bat)
-            timestamp.append(time.time() - start)
+            try:
+                v = (crazyflie.get_battery_level())
+                print(v)
+                voltage.append(v)
+
+            except:
+                print("except")
+
+            finally:
+                time.sleep(1)
 
         crazyflie.stop()
         print("crazyflie is landing")
         crazyflie.land()
 
-        filename = "./battery_test.csv"
+    print("Calculate moving average")
+    moving_averages = []
+    i = 0
+    window_size = 3
+    while i < len(voltage) - window_size + 1:
+        # Store elements from j to j+window_size
+        # in list to get the current window
+        window = voltage[i: i + window_size]
 
-        # writing to csv file
-        with open(filename, 'w') as csvfile:
-            # creating a csv writer object
-            csvwriter = csv.writer(csvfile)
+        # Calculate the average of current window
+        window_average = round(sum(window) / window_size, 3)
 
-            csvwriter.writerow(v_bat)
-            csvwriter.writerows(timestamp)
+        # Store the average of current
+        # window in moving average list
+        moving_averages.append(window_average)
+
+        # Shift window to right by one position
+        i += 1
+
+    print(moving_averages)
+
     stop_thread_flag = True
     time.sleep(5)
     client_socket.close()

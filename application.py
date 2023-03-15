@@ -33,7 +33,8 @@ import square_planar_marker as spm
 # set constants
 LOW_BAT = 3.0  # if the cf reaches this battery voltage level, it should land
 TAKEOFF_HEIGHT = 0.8
-MAX_MARKER_ID = 1
+MAX_MARKER_ID = 0
+DISTANCE_TO_MARKER = 0.1
 URI = uri_helper.uri_from_env(default='radio://0/100/2M/E7E7E7E701')
 
 
@@ -217,7 +218,7 @@ class CF:
 
         :return: -
         """
-        r = 20  # rate to turn (degrees/second)
+        r = 30  # rate to turn (degrees/second)
         if degrees > 0:
             self.mc.turn_right(abs(degrees), rate=r)
 
@@ -240,6 +241,15 @@ class CF:
         if rate < 0:
             self.mc.start_turn_left(abs(rate))
 
+    def back(self, dist_b):
+        """
+        crazyflie moves backwards
+        :param dist_b: distance
+        :return: -
+        """
+
+        self.mc.back(dist_b,  velocity=0.5)
+
     def move(self, x, y, z):
         """
         crazyflie moves in straight line
@@ -249,7 +259,7 @@ class CF:
         :return: -
         """
 
-        self.mc.move_distance(x, y, z, velocity=0.2)
+        self.mc.move_distance(x, y, z, velocity=0.3)
 
     def start_moving(self, vel_x, vel_y, vel_z):
         """
@@ -288,8 +298,6 @@ if __name__ == "__main__":
         marker_size = 20  # size in cm
     print("Camera calibration loaded")
 
-    #imgdata = None
-    #data_buffer = bytearray()
     # setup for logging
     logging.basicConfig(level=logging.ERROR)
     log_stabilizer = LogConfig(name="Stabilizer", period_in_ms=12)
@@ -354,20 +362,27 @@ if __name__ == "__main__":
 
             marker_found = False
             # start turning to find marker with id m
-            crazyflie.start_turning(35)
+            crazyflie.start_turning(-45)
+            start_time = time.time()
+            elapsed_time = 0
             while not marker_found:
                 print("Search for marker with id=" + str(m))
                 marker_ids, marker_corners = spm.detect_marker(image)
                 cv2.imshow('spm detection', image)
                 cv2.waitKey(1)
+                elapsed_time = time.time() - start_time
                 # if marker is found exit searching loop and let the crazyflie hover
                 if marker_ids is not None and m in marker_ids:
-                    crazyflie.stop()
-                    crazyflie.turn(10)
+                    crazyflie.stop()  # stop the searching motion
+                    crazyflie.turn(-10)  # turn 10 degrees further to get the marker stable into the frame
                     print("Marker found")
                     marker_found = True
             # detect markers again in current image
-            marker_ids, marker_corners = spm.detect_marker(image)
+            # first make sure the marker is found, because sometimes in between the first and second search,
+            # the marker gets out of the image frame
+            marker_ids = None
+            while marker_ids is None:
+                marker_ids, marker_corners = spm.detect_marker(image)
             for c, i in enumerate(marker_ids):
                 if i == m:
                     # estimate pose of marker with desired id
@@ -377,14 +392,14 @@ if __name__ == "__main__":
                     cv2.imshow('spm detection', image)
                     cv2.waitKey(1)
                     # align to marker
-                    #crazyflie.turn(euler_angles[1] * 180 / math.pi)
+                    # crazyflie.turn(euler_angles[1] * 180 / math.pi)
 
-                    # calculate distance to marker
+                    # calculate trajectory vector to marker and magnitude of it
                     traj = (trans_vec[0, 0] - distance) / 100
                     mag_traj = math.sqrt(traj[0] ** 2 + traj[1] ** 2 + traj[2] ** 2)
 
                     # control loop
-                    while mag_traj > 0.1:
+                    while mag_traj > DISTANCE_TO_MARKER:
                         start_time = time.time()
                         marker_ids, marker_corners = spm.detect_marker(image)
                         if marker_ids is not None:
@@ -399,17 +414,24 @@ if __name__ == "__main__":
 
                                     traj = (trans_vec[0, 0] - distance) / 100
                                     mag_traj = math.sqrt(traj[0] ** 2 + traj[1] ** 2 + traj[2] ** 2)
-                                    direction = traj / (mag_traj * 16)
+                                    direction = traj / (mag_traj*15)
+
+                                    # fly a bit towards the marker
                                     crazyflie.move(direction[2], -direction[0], -direction[1])
-                                    crazyflie.turn(euler_angles[1] * 180 / (math.pi*4))
-                            print(time.time() - start_time)
-                            print(mag_traj)
+                                    # turn a bit towards the marker
+                                    crazyflie.turn(euler_angles[1] * 180 / (math.pi * 8))
+
+                            print(str(time.time() - start_time))
+                            # print("Distance: " + str(mag_traj))
+
+                    crazyflie.stop()  # stop any motion
+                    time.sleep(2)
+                    crazyflie.back(1)
 
                     break
         # when all markers are processed --> land
         # crazyflie.stop()
         print("crazyflie is landing")
-        time.sleep(5)
         crazyflie.land()
         stop_thread_flag = True
         t1.join()

@@ -6,7 +6,7 @@ from cflib.crazyflie import Crazyflie
 from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
 
 # URI to the Crazyflie to connect to
-uri = 'radio://0/100/2M/E7E7E7E701'
+uri = 'radio://0/100/2M/E7E7E7E702'
 
 
 def simple_connect():
