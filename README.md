@@ -95,3 +95,4 @@ is saved. This file has to be referenced afterwards in application.py (see below
         distortion = np.array(dis)
         marker_size = 20  # size in cm
     print("Camera calibration loaded")
+
