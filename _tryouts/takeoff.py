@@ -90,9 +90,8 @@ if __name__ == '__main__':
         print("TAKEOFF")
 
         mc = MotionCommander(scf)
-        mc.take_off(height=1, velocity=0.5)
+        mc.take_off(height=0.5, velocity=0.5)
         time.sleep(1)
-        mc.turn_left(45, 20)
+        mc.move_distance(1, 0, 0, velocity=0.2)
         print("NOW")
-        time.sleep(1)
-        mc.land(velocity=0.1)
+        mc.land(velocity=0.5)

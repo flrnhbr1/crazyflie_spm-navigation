@@ -9,6 +9,8 @@ import cv2.aruco as aruco
 import numpy as np
 import yaml
 
+import square_planar_marker as spm
+
 CAMERA_OFFSET = 0
 
 # Args for setting IP/port of AI-deck. Default settings are for when
@@ -97,7 +99,8 @@ def estimate_marker_pose(img, id, corners):
     # pose_matrix = cv2.hconcat((r_matrix, t_vec))
     # _, _, _, _, _, _, euler_angles = cv2.decomposeProjectionMatrix(pose_matrix)
 
-    img = print_marker_info_on_image(img, corners[0], id, matrix, distortion, r_vec, t_vec, euler_angles)
+    img = print_marker_details(img, corners[0], id, matrix, distortion, r_vec, t_vec, euler_angles, 1)
+    # img = print_marker_position(img, corners[0])
     return img, euler_angles
 
 
@@ -150,6 +153,72 @@ def print_marker_info_on_image(img, corners, id, mtrx, dist, rot_vec, trans_vec,
     return img
 
 
+def print_marker_details(img, corners, marker_id, mtrx, dist, t_vec, r_vec, eul_angles, index):
+    """
+    function to print a rectangle, axis and text to the marker
+    :param img: input image with marker
+    :param corners: corner coordinates of the marker
+    :param marker_id: id of the marker
+    :param mtrx: camera calibration matrix
+    :param dist: camera calibration distortion coefficients
+    :param r_vec: rotation vector of the marker
+    :param t_vec: translation vector marker
+    :param eul_angles: euler angles of the marker
+    :param index: index of the marker regarding the number of all detected markers
+    :return: image: img,
+             image with printed info
+    """
+
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    color = (50, 160, 200)
+
+    # save corners in array
+    pts = np.array([[int(corners[0, 0]), int(corners[0, 1])], [int(corners[1, 0]), int(corners[1, 1])],
+                    [int(corners[2, 0]), int(corners[2, 1])], [int(corners[3, 0]), int(corners[3, 1])]], np.int32)
+    pts = pts.reshape((-1, 1, 2))
+    # print polygon over marker
+    cv2.polylines(img, [pts], True, color, 2)
+
+    # define text properties
+    str_id = "marker id = " + str(marker_id)
+    pos_id = (10, ((4 * index + 1) * 10))
+    str_t_vec = "t_vec= " + str(np.round(t_vec[0, 0], decimals=3)) + " -->[tx ty tz]"
+    pos_t_vec = (10, ((4 * index + 2) * 10))
+    str_eul = "eul_angles= " + str(np.round(eul_angles, decimals=3)) + " -->[a b y]"
+    pos_eul = (10, ((4 * index + 3) * 10))
+    # print translation vector and euler angles
+    cv2.putText(img, str_id, pos_id, font, 0.3, color, 1, cv2.LINE_AA)
+    cv2.putText(img, str_t_vec, pos_t_vec, font, 0.3, color, 1, cv2.LINE_AA)
+    cv2.putText(img, str_eul, pos_eul, font, 0.3, color, 1, cv2.LINE_AA)
+    # print axis to marker
+    cv2.drawFrameAxes(img, mtrx, dist, r_vec, t_vec, 10, 5)
+
+    return img
+
+
+def print_marker_position(img, corners):
+    """
+    function to print a rectangle, axis and text to the marker
+    :param img: input image with marker
+    :param corners: corner coordinates of the marker
+
+    :return: image: img,
+             image with rectangle around marker
+    """
+
+    color = (50, 160, 200)
+
+    # save corners in array
+    pts = np.array([[int(corners[0, 0]) - 10, int(corners[0, 1]) - 10],
+                    [int(corners[1, 0]) + 10, int(corners[1, 1]) - 10],
+                    [int(corners[2, 0]) + 10, int(corners[2, 1]) + 15],
+                    [int(corners[3, 0]) - 10, int(corners[3, 1]) + 10]], np.int32)
+    pts = pts.reshape((-1, 1, 2))
+    # print polygon over marker
+    cv2.polylines(img, [pts], True, color, 2)
+    return img
+
+
 def main():
     start = time.time()
     count = 0
@@ -190,12 +259,18 @@ def main():
             # img_color is only used for showing on screen
             euler = None
             img_color = cv2.cvtColor(img_gray, cv2.COLOR_BayerBG2BGRA)
-            corners, ids = marker_detection(img_gray)
-            if corners is not None:
-                i = 0
-                for c in corners:
-                    img_color, euler = estimate_marker_pose(img_color, ids[i], c)
-                    i += 1
+            marker_ids = None
+            while marker_ids is None:
+                marker_ids, marker_corners = spm.detect_marker(img_gray)
+                cv2.imshow('spm detection', img_gray)
+                img_color = cv2.cvtColor(img_gray, cv2.COLOR_BayerBG2BGRA)
+            for c, i in enumerate(marker_ids):
+                # estimate pose of marker with desired id
+                trans_vec, rot_vec, euler_angles = spm.estimate_marker_pose(marker_corners[c], marker_size,
+                                                                            matrix, distortion)
+                img_color = spm.print_marker_details(img_color, c, 3, matrix, distortion, trans_vec, rot_vec,
+                                                     euler_angles, 0)
+
             cv2.imshow('spm detection', img_color)
             print(euler)
             cv2.waitKey(1)

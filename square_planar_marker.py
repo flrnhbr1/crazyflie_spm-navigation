@@ -9,6 +9,10 @@ import cv2
 import math
 import numpy as np
 
+# define aruco dictionary and parameters (parameters are default)
+AR_DIC = aruco.Dictionary_get(aruco.DICT_ARUCO_ORIGINAL)  # (aruco.DICT_6X6_1000)
+AR_PAR = aruco.DetectorParameters_create()
+
 
 def detect_marker(img):
     """
@@ -19,12 +23,8 @@ def detect_marker(img):
              id and corner coordinates of markers
     """
 
-    # define aruco dictionary and parameters (parameters are default)
-    ar_dic = aruco.Dictionary_get(aruco.DICT_ARUCO_ORIGINAL)  # (aruco.DICT_6X6_1000)
-    ar_par = aruco.DetectorParameters_create()
-
     # detect aruco markers
-    (corners, ids, rejected) = aruco.detectMarkers(img, ar_dic, parameters=ar_par)
+    (corners, ids, rejected) = aruco.detectMarkers(img, AR_DIC, parameters=AR_PAR)
 
     return ids, corners
 

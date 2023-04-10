@@ -42,16 +42,19 @@ pip install numpy
 pip install yaml
 ```
 - macOS
-- 
 ```shell
 pip install pyyaml
+```
+
+#### matplotlib for plotting data:
+```shell
+pip install matplotlib
 ```
 
 #### opencv for image processing:
 ```shell
 pip install opencv-python
 ```
-
 #### opencv contrib for aruco markers:
 ```shell
 pip install opencv-contrib-python
@@ -75,7 +78,7 @@ The square planar markers (spm), that have to be used must meet the following sp
 - Marker size: 200mm
 
 The markers can be generated with python 
-(see e.g., https://pyimagesearch.com/2020/12/14/generating-aruco-markers-with-opencv-and-python/) 
+(e.g., https://pyimagesearch.com/2020/12/14/generating-aruco-markers-with-opencv-and-python/) 
 or with an online generator (e.g., https://chev.me/arucogen/).
 
 

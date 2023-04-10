@@ -304,6 +304,7 @@ if __name__ == "__main__":
         time.sleep(1)
 
         voltage = []
+        timestamp = []
         start = time.time()
         v_bat = crazyflie.get_battery_level()
         while v_bat > LOW_BAT:
@@ -311,9 +312,7 @@ if __name__ == "__main__":
                 v = (crazyflie.get_battery_level())
                 print(v)
                 voltage.append(v)
-
-            except:
-                print("except")
+                timestamp.append(time.time()-start)
 
             finally:
                 time.sleep(1)
@@ -342,6 +341,8 @@ if __name__ == "__main__":
         i += 1
 
     print(moving_averages)
+    print("-----")
+    print(timestamp)
 
     stop_thread_flag = True
     time.sleep(5)

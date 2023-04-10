@@ -27,6 +27,9 @@ from cflib.utils import uri_helper
 # import open cv functions
 import cv2
 
+# import pid lib
+from simple_pid import PID
+
 # import square planar marker functions
 import square_planar_marker as spm
 
@@ -38,7 +41,7 @@ URI = uri_helper.uri_from_env(default='radio://0/100/2M/E7E7E7E701')
 TAKEOFF_HEIGHT = 0.8
 # highest used marker id, start from id=0
 # marker type must be aruco original dictionary
-MAX_MARKER_ID = 0
+MAX_MARKER_ID = 1
 # define distance crazyflie <--> marker (when moving to marker)
 DISTANCE = np.array([0, 0, 100])  # [cm]
 
@@ -122,6 +125,51 @@ def get_image_from_ai_deck():
 
             # set global variable
             image = img_gray
+
+
+class LowPassFilter:
+    """
+    class for moving average filter for the trajectory paths
+    """
+
+    def __init__(self):
+        """
+        constructor for a moving average lowpass filter
+        """
+
+        self.data_x = []
+        self.data_y = []
+        self.data_z = []
+        self.data_psi = []
+
+    def append(self, t_vec, eul_angles):
+        """
+        function for appending the filter data
+        :param t_vec: translation vector marker
+        :param eul_angles: euler angles of the marker
+        :return: -
+        """
+        self.data_x.append(t_vec[0, 0, 0])
+        self.data_y.append(t_vec[0, 0, 1])
+        self.data_z.append(t_vec[0, 0, 2])
+        self.data_psi.append(eul_angles[1])
+
+    def get_filtered(self, window_size):
+        """
+        function to get the filtered values
+        :param window_size: size of the filter window of the moving average filter
+        :return:    double array[]: t_vec (filtered),
+                    double: psi_angle (filtered yaw angle)
+        """
+
+        t_vec = [0, 0, 0]
+        length = len(self.data_x)
+        t_vec[0] = np.sum(self.data_x[length - window_size:length]) / window_size
+        t_vec[1] = np.sum(self.data_y[length - window_size:length]) / window_size
+        t_vec[2] = np.sum(self.data_z[length - window_size:length]) / window_size
+        psi_angle = np.sum(self.data_psi[length - window_size:length]) / window_size
+
+        return t_vec, psi_angle
 
 
 class CF:
@@ -315,6 +363,14 @@ if __name__ == "__main__":
     cflib.crtp.init_drivers(enable_debug_driver=False)
     cf = Crazyflie(rw_cache='./cache')
 
+    # pid controller gains
+    kp_yaw = 1
+    kd_yaw = 0.045
+    ki_yaw = 0.1
+    kp_x = 5.1
+    kd_x = 0.62
+    ki_x = 5.4
+
     # starting the main functionality
     with SyncCrazyflie(URI, cf) as sync_cf:
         crazyflie = CF(sync_cf)
@@ -362,7 +418,11 @@ if __name__ == "__main__":
                 print("Battery-level too low [Voltage = " + str(round(v_bat, 2)) + "V]")
                 break
 
+            # initiate low pass filter for noise filtering
+            traj_filter = LowPassFilter()
+
             marker_found = False
+
             # start turning to find marker with id m
             crazyflie.start_turning(-45)
             start_time = time.time()
@@ -393,14 +453,14 @@ if __name__ == "__main__":
 
                     cv2.imshow('spm detection', image)
                     cv2.waitKey(1)
-                    # align to marker
-                    # crazyflie.turn(euler_angles[1] * 180 / math.pi)
 
                     # calculate trajectory vector to marker and magnitude of it
                     traj = (trans_vec[0, 0] - DISTANCE) / 100
                     mag_traj = math.sqrt(traj[0] ** 2 + traj[1] ** 2 + traj[2] ** 2)
 
                     # control loop -- approach marker until distance to goal is > 10cm
+
+                    filter_count = 0
                     while mag_traj > 0.1:
                         start_time = time.time()
                         marker_ids, marker_corners = spm.detect_marker(image)
@@ -411,19 +471,24 @@ if __name__ == "__main__":
                                     trans_vec, rot_vec, euler_angles = spm.estimate_marker_pose(marker_corners[d],
                                                                                                 marker_size, matrix,
                                                                                                 distortion)
+                                    # append filter data
+                                    traj_filter.append(trans_vec, euler_angles)
                                     cv2.imshow('spm detection', image)
                                     cv2.waitKey(1)
+                                    # get filtered signal and execute trajectory
+                                    if filter_count > 5:
+                                        traj, psi = traj_filter.get_filtered(5)
+                                        traj = (traj - DISTANCE) / 100
+                                        mag_traj = math.sqrt(traj[0] ** 2 + traj[1] ** 2 + traj[2] ** 2)
+                                        direction = traj / (mag_traj * 15)
 
-                                    traj = (trans_vec[0, 0] - DISTANCE) / 100
-                                    mag_traj = math.sqrt(traj[0] ** 2 + traj[1] ** 2 + traj[2] ** 2)
-                                    direction = traj / (mag_traj * 15)
+                                        # fly a bit towards the marker
+                                        crazyflie.move(direction[2], -direction[0], -direction[1])
+                                        # turn a bit towards the marker
+                                        crazyflie.turn(psi * 180 / (math.pi * 8))
+                        filter_count += 1
 
-                                    # fly a bit towards the marker
-                                    crazyflie.move(direction[2], -direction[0], -direction[1])
-                                    # turn a bit towards the marker
-                                    crazyflie.turn(euler_angles[1] * 180 / (math.pi * 8))
-
-                            # print("RTT:" + str(time.time() - start_time))
+                        # print("RTT:" + str(time.time() - start_time))
 
                     crazyflie.stop()  # stop any motion
                     time.sleep(2)
@@ -438,3 +503,41 @@ if __name__ == "__main__":
         t1.join()
         time.sleep(2)
         client_socket.close()
+
+        moving_averages_x = []
+        moving_averages_y = []
+        moving_averages_z = []
+        moving_averages_psi = []
+        # Loop through the array t o
+        # consider every window of size 3
+        window_size = 5
+        i=0
+        while i < len(traj_filter.data_x) - window_size + 1:
+            # Calculate the average of current window
+            window_average_x = np.sum(traj_filter.data_x[i:i + window_size]) / window_size
+            print("hell:" + str(traj_filter.data_x[i:i + window_size]))
+            window_average_y = np.sum(traj_filter.data_y[i:i + window_size]) / window_size
+            window_average_z = np.sum(traj_filter.data_z[i:i + window_size]) / window_size
+            window_average_psi = np.sum(traj_filter.data_psi[i:i + window_size]) / window_size
+
+            # Store the average of current
+            # window in moving average list
+            moving_averages_x.append(window_average_x)
+            moving_averages_y.append(window_average_y)
+            moving_averages_z.append(window_average_z)
+            moving_averages_psi.append(window_average_psi)
+
+            # Shift window to right by one position
+            i += 1
+
+        data = {'unfiltered_x': np.asarray(traj_filter.data_x).tolist(),
+                'filtered_x': np.asarray(moving_averages_x).tolist(),
+                'unfiltered_y': np.asarray(traj_filter.data_y).tolist(),
+                'filtered_y': np.asarray(moving_averages_y).tolist(),
+                'unfiltered_z': np.asarray(traj_filter.data_z).tolist(),
+                'filtered_z': np.asarray(moving_averages_z).tolist(),
+                'unfiltered_psi': np.asarray(traj_filter.data_psi).tolist(),
+                'filtered_psi': np.asarray(moving_averages_psi).tolist()
+                }
+        with open("plot/motion_data.yaml", "w") as f:
+            yaml.dump(data, f)
