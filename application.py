@@ -27,9 +27,6 @@ from cflib.utils import uri_helper
 # import open cv functions
 import cv2
 
-# import pid lib
-from simple_pid import PID
-
 # import square planar marker functions
 import square_planar_marker as spm
 
@@ -363,14 +360,6 @@ if __name__ == "__main__":
     cflib.crtp.init_drivers(enable_debug_driver=False)
     cf = Crazyflie(rw_cache='./cache')
 
-    # pid controller gains
-    kp_yaw = 1
-    kd_yaw = 0.045
-    ki_yaw = 0.1
-    kp_x = 5.1
-    kd_x = 0.62
-    ki_x = 5.4
-
     # starting the main functionality
     with SyncCrazyflie(URI, cf) as sync_cf:
         crazyflie = CF(sync_cf)
@@ -461,6 +450,7 @@ if __name__ == "__main__":
                     # control loop -- approach marker until distance to goal is > 10cm
 
                     filter_count = 0
+                    window_size = 5
                     while mag_traj > 0.1:
                         start_time = time.time()
                         marker_ids, marker_corners = spm.detect_marker(image)
@@ -476,8 +466,8 @@ if __name__ == "__main__":
                                     cv2.imshow('spm detection', image)
                                     cv2.waitKey(1)
                                     # get filtered signal and execute trajectory
-                                    if filter_count > 5:
-                                        traj, psi = traj_filter.get_filtered(5)
+                                    if filter_count > window_size:
+                                        traj, psi = traj_filter.get_filtered(window_size)
                                         traj = (traj - DISTANCE) / 100
                                         mag_traj = math.sqrt(traj[0] ** 2 + traj[1] ** 2 + traj[2] ** 2)
                                         direction = traj / (mag_traj * 15)
@@ -504,14 +494,14 @@ if __name__ == "__main__":
         time.sleep(2)
         client_socket.close()
 
+        # save motion data for analyzing
+
         moving_averages_x = []
         moving_averages_y = []
         moving_averages_z = []
         moving_averages_psi = []
-        # Loop through the array t o
-        # consider every window of size 3
-        window_size = 5
-        i=0
+
+        i = 0
         while i < len(traj_filter.data_x) - window_size + 1:
             # Calculate the average of current window
             window_average_x = np.sum(traj_filter.data_x[i:i + window_size]) / window_size

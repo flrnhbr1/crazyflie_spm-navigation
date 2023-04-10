@@ -2,6 +2,8 @@ import yaml
 import numpy as np
 import matplotlib.pyplot as plt
 
+window_size = 5
+
 with open('motion_data.yaml') as f:
     loaded_dict = yaml.safe_load(f)
     unf_x = loaded_dict.get('unfiltered_x')
@@ -27,7 +29,7 @@ with open('motion_data.yaml') as f:
 print("Plotting data loaded")
 
 # append filtered data for shifting
-for i in range(4):
+for i in range(window_size-1):
     filtered_x = np.insert(filtered_x, 0, filtered_x[0])
     filtered_y = np.insert(filtered_y, 0, filtered_y[0])
     filtered_z = np.insert(filtered_z, 0, filtered_z[0])
