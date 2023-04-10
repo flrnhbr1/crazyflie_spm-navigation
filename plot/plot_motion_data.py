@@ -2,9 +2,9 @@ import yaml
 import numpy as np
 import matplotlib.pyplot as plt
 
-window_size = 5
+window_size = 3
 
-with open('motion_data.yaml') as f:
+with open('motion_data_windowSize5.yaml') as f:
     loaded_dict = yaml.safe_load(f)
     unf_x = loaded_dict.get('unfiltered_x')
     unf_y = loaded_dict.get('unfiltered_y')
@@ -38,32 +38,36 @@ for i in range(window_size-1):
 # plot
 fig = plt.figure(figsize=(20, 10))
 
-fig.add_subplot(2, 2, 1, title="Signal x")
-plt.plot(unfiltered_x, label="original signal")
-plt.plot(filtered_x, label="filtered signal")
+fig.add_subplot(2, 2, 1, title="Translation in x")
+plt.plot(unfiltered_x, label="Measured distance")
+plt.plot(filtered_x, label="Executed motion")
 plt.legend()
-plt.xlabel('time')
-plt.ylabel('value')
+plt.grid()
+plt.xlabel('Samples [n]')
+plt.ylabel('Distance [cm]')
 
-fig.add_subplot(2, 2, 2, title="Signal y")
-plt.plot(unfiltered_y, label="original signal")
-plt.plot(filtered_y, label="filtered signal")
+fig.add_subplot(2, 2, 2, title="Translation in y")
+plt.plot(unfiltered_y, label="Measured distance")
+plt.plot(filtered_y, label="Executed motion")
 plt.legend()
-plt.xlabel('time')
-plt.ylabel('value')
+plt.grid()
+plt.xlabel('Samples [n]')
+plt.ylabel('Distance [cm]')
 
-fig.add_subplot(2, 2, 3, title="Signal z")
-plt.plot(unfiltered_z, label="original signal")
-plt.plot(filtered_z, label="filtered signal")
+fig.add_subplot(2, 2, 3, title="Translation in z")
+plt.plot(unfiltered_z, label="Measured distance")
+plt.plot(filtered_z, label="Executed motion")
 plt.legend()
-plt.xlabel('time')
-plt.ylabel('value')
+plt.grid()
+plt.xlabel('Samples [n]')
+plt.ylabel('Distance [cm]')
 
-fig.add_subplot(2, 2, 4, title="Signal psi")
-plt.plot(unfiltered_psi, label="original signal")
-plt.plot(filtered_psi, label="filtered signal")
+fig.add_subplot(2, 2, 4, title="Yaw rotation")
+plt.plot(unfiltered_psi, label="Measured offset")
+plt.plot(filtered_psi, label="Executed alignment")
 plt.legend()
-plt.xlabel('time')
-plt.ylabel('value')
+plt.grid()
+plt.xlabel('Samples [n]')
+plt.ylabel('Offset [rad]')
 
 plt.show()

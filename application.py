@@ -38,7 +38,7 @@ URI = uri_helper.uri_from_env(default='radio://0/100/2M/E7E7E7E701')
 TAKEOFF_HEIGHT = 0.8
 # highest used marker id, start from id=0
 # marker type must be aruco original dictionary
-MAX_MARKER_ID = 1
+MAX_MARKER_ID = 0
 # define distance crazyflie <--> marker (when moving to marker)
 DISTANCE = np.array([0, 0, 100])  # [cm]
 
@@ -450,7 +450,7 @@ if __name__ == "__main__":
                     # control loop -- approach marker until distance to goal is > 10cm
 
                     filter_count = 0
-                    window_size = 5
+                    window_size = 3
                     while mag_traj > 0.1:
                         start_time = time.time()
                         marker_ids, marker_corners = spm.detect_marker(image)
