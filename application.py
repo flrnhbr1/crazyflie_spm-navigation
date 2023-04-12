@@ -36,10 +36,12 @@ URI = uri_helper.uri_from_env(default='radio://0/100/2M/E7E7E7E701')
 
 # default height of takeoff
 TAKEOFF_HEIGHT = 0.8
+
 # highest used marker id, start from id=0
 # marker type must be aruco original dictionary
 MAX_MARKER_ID = 0
-# define distance crazyflie <--> marker (when moving to marker)
+
+# define destination vector crazyflie <--> marker
 DISTANCE = np.array([0, 0, 100])  # [cm]
 
 
@@ -124,9 +126,9 @@ def get_image_from_ai_deck():
             image = img_gray
 
 
-class LowPassFilter:
+class MovingAverageFilter:
     """
-    class for moving average filter for the trajectory paths
+    class for moving average filter for trajectory paths
     """
 
     def __init__(self):
@@ -345,8 +347,8 @@ if __name__ == "__main__":
         dis = loaded_dict.get('dist_coeff')
         matrix = np.array(mtx)
         distortion = np.array(dis)
-        marker_size = 20  # size in cm
     print("Camera calibration loaded")
+    marker_size = 20  # size in cm
 
     # setup for logging
     logging.basicConfig(level=logging.ERROR)
@@ -360,13 +362,19 @@ if __name__ == "__main__":
     cflib.crtp.init_drivers(enable_debug_driver=False)
     cf = Crazyflie(rw_cache='./cache')
 
+    # initiate filter for noise filtering
+    motion_filter = MovingAverageFilter()
+
     # starting the main functionality
+
+    # connect to crazyflie
     with SyncCrazyflie(URI, cf) as sync_cf:
         crazyflie = CF(sync_cf)
         print("crazyflie initialized!")
 
         # check if extensions decks are connected
         if not crazyflie.decks_attached():
+            print("Error: At least one deck not detected")
             sys.exit(1)
 
         print("Flow deck and ai deck connected")
@@ -392,8 +400,9 @@ if __name__ == "__main__":
         print("Image Thread started")
 
         # All checks done
+
         # Now start the crazyflie!
-        print("All initial checks done!")
+        print("All initial checks passed!")
         print("crazyflie taking off!")
         crazyflie.takeoff(TAKEOFF_HEIGHT)
         time.sleep(1)
@@ -406,17 +415,19 @@ if __name__ == "__main__":
             if v_bat < LOW_BAT:
                 print("Battery-level too low [Voltage = " + str(round(v_bat, 2)) + "V]")
                 break
+            print("Battery-level OK [Voltage = " + str(round(v_bat, 2)) + "V]")
 
-            # initiate low pass filter for noise filtering
-            traj_filter = LowPassFilter()
-
-            marker_found = False
-
-            # start turning to find marker with id m
+            # start turning to find marker with id == m
             crazyflie.start_turning(-45)
+
+            # initialize timer
             start_time = time.time()
             elapsed_time = 0
-            while not marker_found:
+
+            # search for marker while turning around for 10 seconds
+            # if the desired marker is not found before the timeout --> go to next marker
+            marker_found = False
+            while not marker_found and elapsed_time < 10:
                 print("Search for marker with id=" + str(m))
                 marker_ids, marker_corners = spm.detect_marker(image)
                 cv2.imshow('spm detection', image)
@@ -425,90 +436,109 @@ if __name__ == "__main__":
                 # if marker is found exit searching loop and let the crazyflie hover
                 if marker_ids is not None and m in marker_ids:
                     crazyflie.stop()  # stop the searching motion
-                    crazyflie.turn(-10)  # turn 10 degrees further to get the marker stable into the frame
+                    crazyflie.turn(-10)  # turn 10 degrees further to get the marker fully into the frame
                     print("Marker found")
                     marker_found = True
+
             # detect markers again in current image
             # first make sure the marker is found, because sometimes in between the first and second search,
             # the marker gets out of the image frame
             marker_ids = None
             while marker_ids is None:
                 marker_ids, marker_corners = spm.detect_marker(image)
-            for c, i in enumerate(marker_ids):
-                if i == m:
-                    # estimate pose of marker with desired id
-                    trans_vec, rot_vec, euler_angles = spm.estimate_marker_pose(marker_corners[c], marker_size,
-                                                                                matrix, distortion)
 
-                    cv2.imshow('spm detection', image)
-                    cv2.waitKey(1)
+            # now perform control-loop for marker with id == m
+            for c, i in enumerate(marker_ids):  # if multiple markers are in frame, iterate over them
 
-                    # calculate trajectory vector to marker and magnitude of it
-                    traj = (trans_vec[0, 0] - DISTANCE) / 100
-                    mag_traj = math.sqrt(traj[0] ** 2 + traj[1] ** 2 + traj[2] ** 2)
-
-                    # control loop -- approach marker until distance to goal is > 10cm
-
+                if i == m:  # if the desired marker is found
+                    # counter for entering the controlling, first 'window_size' values must be appended,
+                    # to perform filtering
                     filter_count = 0
-                    window_size = 3
-                    while mag_traj > 0.1:
-                        start_time = time.time()
-                        marker_ids, marker_corners = spm.detect_marker(image)
-                        if marker_ids is not None:
-                            for d, j in enumerate(marker_ids):
-                                if j == m:
-                                    # estimate pose of marker with desired id
+
+                    mag_dest = 1  # set to 1, to enter the loop
+                    window_size = 9  # window size of the moving average filter
+
+                    # initialize timeout
+                    start_time = time.time()
+                    elapsed_time = 0
+
+                    # control loop -- approach marker until distance to goal is > 0.05m
+                    while mag_dest > 0.05 and elapsed_time < 5:
+                        marker_ids, marker_corners = spm.detect_marker(image)  # detect markers in image
+                        if marker_ids is not None:  # if there is a marker
+                            for d, j in enumerate(marker_ids):  # if multiple markers are in frame, iterate over them
+                                if j == m:   # if the desired marker is found
+
+                                    start_time = time.time()  # marker found --> reset timeout
+
+                                    # estimate pose of the marker
                                     trans_vec, rot_vec, euler_angles = spm.estimate_marker_pose(marker_corners[d],
                                                                                                 marker_size, matrix,
                                                                                                 distortion)
-                                    # append filter data
-                                    traj_filter.append(trans_vec, euler_angles)
+                                    # append measured values to moving average filter
+                                    motion_filter.append(trans_vec, euler_angles)
+
+                                    # show image
                                     cv2.imshow('spm detection', image)
                                     cv2.waitKey(1)
+
                                     # get filtered signal and execute trajectory
-                                    if filter_count > window_size:
-                                        traj, psi = traj_filter.get_filtered(window_size)
-                                        traj = (traj - DISTANCE) / 100
-                                        mag_traj = math.sqrt(traj[0] ** 2 + traj[1] ** 2 + traj[2] ** 2)
-                                        direction = traj / (mag_traj * 15)
+                                    if filter_count > window_size:  # if enough data is available
+                                        # get lowpass-filtered data
+                                        linear_motion, yaw_motion = motion_filter.get_filtered(window_size)
 
-                                        # fly a bit towards the marker
-                                        crazyflie.move(direction[2], -direction[0], -direction[1])
-                                        # turn a bit towards the marker
-                                        crazyflie.turn(psi * 180 / (math.pi * 8))
-                        filter_count += 1
+                                        # subtract vectors to get the trajectory to the destination coordinates
+                                        # divide by 100 to get from cm to m
+                                        dest = (linear_motion - DISTANCE) / 100
 
+                                        # calculate magnitude, to calculate the unity vector
+                                        # in the direction of the destination
+                                        mag_dest = math.sqrt(dest[0]**2 + dest[1]**2 + dest[2]**2)
+
+                                        # trajectory is 1/15 of the unity vector towards the destination coordinates
+                                        trajectory = dest / (mag_dest * 20)
+
+                                        # fly towards the marker
+                                        crazyflie.move(trajectory[2], -trajectory[0], -trajectory[1])
+
+                                        # align towards the marker, 1/8 of the measured yaw-angle
+                                        # also convert from rad to degrees
+                                        crazyflie.turn(yaw_motion * 180 / (math.pi * 8))
+
+                        elapsed_time = time.time() - start_time  # timer for loop iteration
+
+                        filter_count += 1  # increment, to fill the filter with data before fetching filtered data
+
+                        # print time, that current loop-iteration took
                         # print("RTT:" + str(time.time() - start_time))
 
                     crazyflie.stop()  # stop any motion
-                    time.sleep(2)
-                    crazyflie.back(1)  # backup before searching for next marker
+                    time.sleep(2)  # wait 2 seconds
+                    crazyflie.back(1)  # backup 1m before searching for next marker
+                    break  # break loop --> go to next marker
 
-                    break
         # when all markers are processed --> land
-        # crazyflie.stop()
+        crazyflie.stop()  # stop any motion
         print("crazyflie is landing")
-        crazyflie.land()
-        stop_thread_flag = True
-        t1.join()
-        time.sleep(2)
-        client_socket.close()
+        crazyflie.land()  # land
+        stop_thread_flag = True  # terminate image thread
+        t1.join()  # join image thread
+        time.sleep(2)  # wait
+        client_socket.close()  # close WiFi socket
 
         # save motion data for analyzing
-
         moving_averages_x = []
         moving_averages_y = []
         moving_averages_z = []
         moving_averages_psi = []
 
         i = 0
-        while i < len(traj_filter.data_x) - window_size + 1:
+        while i < len(motion_filter.data_x) - window_size + 1:
             # Calculate the average of current window
-            window_average_x = np.sum(traj_filter.data_x[i:i + window_size]) / window_size
-            print("hell:" + str(traj_filter.data_x[i:i + window_size]))
-            window_average_y = np.sum(traj_filter.data_y[i:i + window_size]) / window_size
-            window_average_z = np.sum(traj_filter.data_z[i:i + window_size]) / window_size
-            window_average_psi = np.sum(traj_filter.data_psi[i:i + window_size]) / window_size
+            window_average_x = np.sum(motion_filter.data_x[i:i + window_size]) / window_size
+            window_average_y = np.sum(motion_filter.data_y[i:i + window_size]) / window_size
+            window_average_z = np.sum(motion_filter.data_z[i:i + window_size]) / window_size
+            window_average_psi = np.sum(motion_filter.data_psi[i:i + window_size]) / window_size
 
             # Store the average of current
             # window in moving average list
@@ -519,15 +549,20 @@ if __name__ == "__main__":
 
             # Shift window to right by one position
             i += 1
+        filename = input("Enter name for log file:\n")
+        path = "plot/" + filename + ".yaml"
+        print("Save data...")
 
-        data = {'unfiltered_x': np.asarray(traj_filter.data_x).tolist(),
+        data = {'unfiltered_x': np.asarray(motion_filter.data_x).tolist(),
                 'filtered_x': np.asarray(moving_averages_x).tolist(),
-                'unfiltered_y': np.asarray(traj_filter.data_y).tolist(),
+                'unfiltered_y': np.asarray(motion_filter.data_y).tolist(),
                 'filtered_y': np.asarray(moving_averages_y).tolist(),
-                'unfiltered_z': np.asarray(traj_filter.data_z).tolist(),
+                'unfiltered_z': np.asarray(motion_filter.data_z).tolist(),
                 'filtered_z': np.asarray(moving_averages_z).tolist(),
-                'unfiltered_psi': np.asarray(traj_filter.data_psi).tolist(),
+                'unfiltered_psi': np.asarray(motion_filter.data_psi).tolist(),
                 'filtered_psi': np.asarray(moving_averages_psi).tolist()
                 }
-        with open("plot/motion_data.yaml", "w") as f:
+        with open(path, "w") as f:
             yaml.dump(data, f)
+
+        print("Logging complete!")

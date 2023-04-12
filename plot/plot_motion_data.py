@@ -2,9 +2,9 @@ import yaml
 import numpy as np
 import matplotlib.pyplot as plt
 
-window_size = 3
+window_size = 9
 
-with open('motion_data_windowSize5.yaml') as f:
+with open('other_percentage_9.yaml') as f:
     loaded_dict = yaml.safe_load(f)
     unf_x = loaded_dict.get('unfiltered_x')
     unf_y = loaded_dict.get('unfiltered_y')
