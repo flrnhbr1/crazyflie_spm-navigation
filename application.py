@@ -14,6 +14,8 @@ import socket
 import struct
 import numpy as np
 import threading
+import datetime
+
 
 # import cf functions
 import cflib.crtp
@@ -143,14 +145,9 @@ class MovingAverageFilter:
         self.data_psi = []
         self.weights = []
 
-        # define averages
-        for a in range(wind_size-1, -1, -1):  # fill weight array [... , 0.125, 0.25, 0.5, 1]
-            self.weights.append(1 / (2**a))
-
-        # for a in range(1, wind_size+1):  # fill weight array [1, 2, 3, ...]
-        #     self.weights.append(a)
-
-        print(self.weights)
+        # define weights
+        for a in range(wind_size, 0, -1):
+            self.weights.append(1/a)
 
     def append(self, t_vec, eul_angles):
         """
@@ -159,9 +156,9 @@ class MovingAverageFilter:
         :param eul_angles: euler angles of the marker
         :return: -
         """
-        self.data_x.append(t_vec[0, 0, 0])
-        self.data_y.append(t_vec[0, 0, 1])
-        self.data_z.append(t_vec[0, 0, 2])
+        self.data_y.append(t_vec[0, 0, 0])
+        self.data_z.append(t_vec[0, 0, 1])
+        self.data_x.append(t_vec[0, 0, 2])
         self.data_psi.append(eul_angles[1])
 
     def get_moving_average(self):
@@ -173,9 +170,9 @@ class MovingAverageFilter:
 
         t_vec = [0, 0, 0]
         length = len(self.data_x)
-        t_vec[0] = np.average(self.data_x[length - self.wind_size:length])
-        t_vec[1] = np.average(self.data_y[length - self.wind_size:length])
-        t_vec[2] = np.average(self.data_z[length - self.wind_size:length])
+        t_vec[2] = np.average(self.data_x[length - self.wind_size:length])
+        t_vec[0] = np.average(self.data_y[length - self.wind_size:length])
+        t_vec[1] = np.average(self.data_z[length - self.wind_size:length])
         psi = np.average(self.data_psi[length - self.wind_size:length])
 
         return t_vec, psi
@@ -189,9 +186,9 @@ class MovingAverageFilter:
 
         t_vec = [0, 0, 0]
         length = len(self.data_x)
-        t_vec[0] = np.average(self.data_x[length - self.wind_size:length], weights=self.weights)
-        t_vec[1] = np.average(self.data_y[length - self.wind_size:length], weights=self.weights)
-        t_vec[2] = np.average(self.data_z[length - self.wind_size:length], weights=self.weights)
+        t_vec[2] = np.average(self.data_x[length - self.wind_size:length], weights=self.weights)
+        t_vec[0] = np.average(self.data_y[length - self.wind_size:length], weights=self.weights)
+        t_vec[1] = np.average(self.data_z[length - self.wind_size:length], weights=self.weights)
         psi = np.average(self.data_psi[length - self.wind_size:length])
 
         return t_vec, psi
@@ -337,7 +334,7 @@ class CF:
         :return: -
         """
 
-        self.mc.move_distance(x, y, z, velocity=0.3)
+        self.mc.move_distance(x, y, z, velocity=0.25)
 
     def start_moving(self, vel_x, vel_y, vel_z):
         """
@@ -389,7 +386,7 @@ if __name__ == "__main__":
     cf = Crazyflie(rw_cache='./cache')
 
     # initiate filter for noise filtering
-    window_size = 5  # window size of the moving average filter
+    window_size = 7  # window size of the moving average filter
     motion_filter = MovingAverageFilter(window_size)
 
     # starting the main functionality
@@ -487,8 +484,8 @@ if __name__ == "__main__":
                     start_time = time.time()
                     elapsed_time = 0
 
-                    # control loop -- approach marker until distance to goal is > 0.05m
-                    while mag_goal > 0.05 and elapsed_time < 5:
+                    # control loop -- approach marker until distance to goal is > 2cm
+                    while mag_goal > 0.02 and elapsed_time < 5:
                         marker_ids, marker_corners = spm.detect_marker(image)  # detect markers in image
                         if marker_ids is not None:  # if there is a marker
                             for d, j in enumerate(marker_ids):  # if multiple markers are in frame, iterate over them
@@ -516,12 +513,11 @@ if __name__ == "__main__":
                                         # divide by 100 to get from cm to m
                                         goal = (linear_motion - DISTANCE) / 100
 
-                                        # calculate magnitude, to calculate the unity vector
-                                        # in the direction of the destination
+                                        # calculate distance to marker,
                                         mag_goal = math.sqrt(goal[0] ** 2 + goal[1] ** 2 + goal[2] ** 2)
 
-                                        # trajectory is 1/15 of the unity vector towards the destination coordinates
-                                        trajectory = goal / (mag_goal * 20)
+                                        # trajectory is 1/25 of the vector towards the destination coordinates
+                                        trajectory = goal / 25
 
                                         # fly towards the marker
                                         crazyflie.move(trajectory[2], -trajectory[0], -trajectory[1])
@@ -592,9 +588,6 @@ if __name__ == "__main__":
 
             # Shift window to right by one position
             i += 1
-        filename = input("Enter name for log file:\n")
-        path = "plot/" + filename + ".yaml"
-        print("Save data...")
 
         data = {'unfiltered_x': np.asarray(motion_filter.data_x).tolist(),
                 'filtered_x': np.asarray(moving_averages_x).tolist(),
@@ -613,6 +606,13 @@ if __name__ == "__main__":
                 'w_filtered_psi': np.asarray(w_moving_averages_psi).tolist(),
 
                 }
+        t = datetime.datetime.now()
+        filename = "Log_" + str(t.year) + "-" + str(t.month) + "-" + str(t.day) + "T" + str(t.hour) + "-" + \
+                   str(t.minute) + "-" + str(t.second)
+
+        path = "plot/" + filename + ".yaml"
+        print("Save data...")
+
         with open(path, "w") as f:
             yaml.dump(data, f)
 
