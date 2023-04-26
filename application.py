@@ -331,7 +331,7 @@ class CF:
 
 
 if __name__ == "__main__":
-    # Arguments for setting IP/port of AI deck. Default settings are for when
+    # Arguments for setting IP/port of AI deck. Default settings are for when AI-deck is in Access Point mode.
     parser = argparse.ArgumentParser(description='Connect to AI-deck JPEG streamer example')
     parser.add_argument("-n", default="192.168.4.1", metavar="ip", help="AI-deck IP")
     parser.add_argument("-p", type=int, default='5000', metavar="port", help="AI-deck port")
