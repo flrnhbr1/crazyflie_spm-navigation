@@ -16,7 +16,6 @@ import numpy as np
 import threading
 import datetime
 
-
 # import cf functions
 import cflib.crtp
 from cflib.crazyflie import Crazyflie
@@ -32,8 +31,15 @@ import cv2
 # import square planar marker functions
 import square_planar_marker as spm
 
+# import custom exceptions
+import custom_exceptions as exceptions
+
 # set constants
-LOW_BAT = 3.0  # if the cf reaches this battery voltage level, it should land
+
+# if the cf reaches this battery voltage level, it should land
+LOW_BAT = 3.0
+
+# ID of the crazyflie
 URI = uri_helper.uri_from_env(default='radio://0/100/2M/E7E7E7E701')
 
 # default height of takeoff
@@ -41,10 +47,10 @@ TAKEOFF_HEIGHT = 0.8
 
 # highest used marker id, start from id=0
 # marker type must be aruco original dictionary
-MAX_MARKER_ID = 0
+MAX_MARKER_ID = 2
 
-# define destination vector crazyflie <--> marker
-DISTANCE = np.array([0, 0, 100])  # [cm]
+# define destination vector marker <--> crazyflie
+DISTANCE = np.array([0, 0, 75])  # [cm]
 
 
 def get_cf_data(scf):
@@ -147,7 +153,7 @@ class MovingAverageFilter:
 
         # define weights
         for a in range(wind_size, 0, -1):
-            self.weights.append(1/a)
+            self.weights.append(1 / a)
 
     def append(self, t_vec, eul_angles):
         """
@@ -247,19 +253,6 @@ class CF:
         self.v_bat = voltage
         return voltage
 
-    def get_yaw(self):
-        """
-        fetches battery level from crazyflie
-        :return: double: yaw
-                 angle of yaw in degrees
-        """
-
-        # returns current yaw
-        _, yaw, _, _ = get_cf_data(self.scf)
-        time.sleep(0.02)
-        self.psi = yaw
-        return yaw
-
     def takeoff(self, height):
         """
         lets the crazyflie takeoff
@@ -267,7 +260,7 @@ class CF:
         :return: -
         """
 
-        self.mc.take_off(height=height, velocity=0.5)
+        self.mc.take_off(height=height, velocity=1)
 
     def stop(self):
         """
@@ -336,17 +329,6 @@ class CF:
 
         self.mc.move_distance(x, y, z, velocity=0.25)
 
-    def start_moving(self, vel_x, vel_y, vel_z):
-        """
-        crazyflie moves in straight line
-        :param vel_x: velocity forward/backward
-        :param vel_y: velocity left/right
-        :param vel_z: velocity up/down
-        :return: -
-        """
-
-        self.mc.start_linear_motion(vel_x, vel_y, vel_z)
-
 
 if __name__ == "__main__":
     # Arguments for setting IP/port of AI deck. Default settings are for when
@@ -393,227 +375,270 @@ if __name__ == "__main__":
 
     # connect to crazyflie
     with SyncCrazyflie(URI, cf) as sync_cf:
-        crazyflie = CF(sync_cf)
-        print("crazyflie initialized!")
+        try:
+            crazyflie = CF(sync_cf)
+            print("crazyflie initialized!")
 
-        # check if extensions decks are connected
-        if not crazyflie.decks_attached():
-            print("Error: At least one deck not detected")
-            sys.exit(1)
+            # check if extensions decks are connected
+            if not crazyflie.decks_attached():
+                raise exceptions.DeckException
 
-        print("Flow deck and ai deck connected")
-
-        # check battery level
-        v_bat = crazyflie.get_battery_level()
-        if v_bat < LOW_BAT:
-            print("Battery-level too low [Voltage = " + str(round(v_bat, 2)) + "V]")
-            sys.exit(1)
-
-        print("Battery-level OK [Voltage = " + str(round(v_bat, 2)) + "V]")
-
-        # initialize global variable for image
-        image = None
-        # initialize flag to stop the image-thread
-        stop_thread_flag = False
-        # start thread for image acquisition
-        t1 = threading.Thread(target=get_image_from_ai_deck)
-        t1.start()
-        time.sleep(1)
-        while image is None:
-            print("Wait for image!")
-        print("Image Thread started")
-
-        # All checks done
-
-        # Now start the crazyflie!
-        print("All initial checks passed!")
-        print("crazyflie taking off!")
-        crazyflie.takeoff(TAKEOFF_HEIGHT)
-        time.sleep(1)
-
-        # perform for all defined markers
-        for m in range(0, MAX_MARKER_ID + 1):
+            print("Flow deck and ai deck connected")
 
             # check battery level
             v_bat = crazyflie.get_battery_level()
             if v_bat < LOW_BAT:
-                print("Battery-level too low [Voltage = " + str(round(v_bat, 2)) + "V]")
-                break
+                raise exceptions.BatteryException(v_bat, False)
+
             print("Battery-level OK [Voltage = " + str(round(v_bat, 2)) + "V]")
 
-            # start turning to find marker with id == m
-            crazyflie.start_turning(-45)
+            # initialize global variable for image
+            image = None
+            # initialize flag to stop the image-thread
+            stop_thread_flag = False
+            # start thread for image acquisition
+            t1 = threading.Thread(target=get_image_from_ai_deck)
+            t1.start()
+            time.sleep(1)
 
-            # initialize timer
-            start_time = time.time()
-            elapsed_time = 0
+            c = 0  # counter for image waiting
+            while image is None:
+                print("Wait for image!")
+                time.sleep(2)
+                c += 1
+                if c > 3:  # if image can not be detected more than 3 times --> raise exception
+                    raise exceptions.ImageFetchException
+            print("Image Thread started")
 
-            # search for marker while turning around for 10 seconds
-            # if the desired marker is not found before the timeout --> go to next marker
-            marker_found = False
-            while not marker_found and elapsed_time < 10:
-                print("Search for marker with id=" + str(m))
-                marker_ids, marker_corners = spm.detect_marker(image)
-                cv2.imshow('spm detection', image)
-                cv2.waitKey(1)
-                elapsed_time = time.time() - start_time
-                # if marker is found exit searching loop and let the crazyflie hover
-                if marker_ids is not None and m in marker_ids:
-                    crazyflie.stop()  # stop the searching motion
-                    crazyflie.turn(-10)  # turn 10 degrees further to get the marker fully into the frame
-                    print("Marker found")
-                    marker_found = True
+            # All checks done
 
-            # detect markers again in current image
-            # first make sure the marker is found, because sometimes in between the first and second search,
-            # the marker gets out of the image frame
-            marker_ids = None
-            while marker_ids is None:
-                marker_ids, marker_corners = spm.detect_marker(image)
+            # Now start the crazyflie!
+            print("All initial checks passed!")
+            print("----> crazyflie taking off!")
+            crazyflie.takeoff(TAKEOFF_HEIGHT)
+            time.sleep(1)
 
-            # now perform control-loop for marker with id == m
-            for c, i in enumerate(marker_ids):  # if multiple markers are in frame, iterate over them
+            # perform for all defined markers
+            for m in range(0, MAX_MARKER_ID + 1):
 
-                if i == m:  # if the desired marker is found
-                    # counter for entering the controlling, first 'window_size' values must be appended,
-                    # to perform filtering
-                    filter_count = 0
+                # check battery level
+                v_bat = crazyflie.get_battery_level()
+                if v_bat < LOW_BAT:
+                    raise exceptions.BatteryException(v_bat, True)
 
-                    mag_goal = 1  # set to 1, to enter the loop
-                    # initialize timeout
-                    start_time = time.time()
-                    elapsed_time = 0
+                print("Battery-level OK [Voltage = " + str(round(v_bat, 2)) + "V]")
 
-                    # control loop -- approach marker until distance to goal is > 2cm
-                    while mag_goal > 0.02 and elapsed_time < 5:
-                        marker_ids, marker_corners = spm.detect_marker(image)  # detect markers in image
-                        if marker_ids is not None:  # if there is a marker
-                            for d, j in enumerate(marker_ids):  # if multiple markers are in frame, iterate over them
-                                if j == m:  # if the desired marker is found
+                # set aligned variable to False
+                aligned = False
 
-                                    start_time = time.time()  # marker found --> reset timeout
+                # start turning to find marker with id == m
+                crazyflie.start_turning(-45)
 
-                                    # estimate pose of the marker
-                                    trans_vec, rot_vec, euler_angles = spm.estimate_marker_pose(marker_corners[d],
-                                                                                                marker_size, matrix,
-                                                                                                distortion)
-                                    # append measured values to moving average filter
-                                    motion_filter.append(trans_vec, euler_angles)
+                # initialize timer
+                start_time = time.time()
+                elapsed_time = 0
 
-                                    # show image
-                                    cv2.imshow('spm detection', image)
-                                    cv2.waitKey(1)
+                # search for marker while turning around for 10 seconds
+                # if the desired marker is not found before the timeout --> go to next marker
+                marker_found = False
+                while not marker_found and elapsed_time < 10:
+                    print("Search for marker with id=" + str(m))
+                    marker_ids, marker_corners = spm.detect_marker(image)
+                    cv2.imshow('spm detection', image)
+                    cv2.waitKey(1)
+                    elapsed_time = time.time() - start_time
+                    # if marker is found exit searching loop and let the crazyflie hover
+                    if marker_ids is not None and m in marker_ids:
+                        crazyflie.stop()  # stop the searching motion
+                        crazyflie.turn(-10)  # turn 10 degrees further to get the marker fully into the frame
+                        print("Marker found")
+                        marker_found = True
 
-                                    # get filtered signal and execute trajectory
-                                    if filter_count > window_size:  # if enough data is available
-                                        # get lowpass-filtered data
-                                        linear_motion, yaw_motion = motion_filter.get_weighted_moving_average()
+                # detect markers again in current image
+                # first make sure the marker is found, because sometimes in between the first and second search,
+                # the marker gets out of the image frame
+                marker_ids = None
+                while marker_ids is None:
+                    marker_ids, marker_corners = spm.detect_marker(image)
 
-                                        # subtract vectors to get the trajectory to the destination coordinates
-                                        # divide by 100 to get from cm to m
-                                        goal = (linear_motion - DISTANCE) / 100
+                # now perform control-loop for marker with id == m
+                for c, i in enumerate(marker_ids):  # if multiple markers are in frame, iterate over them
 
-                                        # calculate distance to marker,
-                                        mag_goal = math.sqrt(goal[0] ** 2 + goal[1] ** 2 + goal[2] ** 2)
+                    if i == m:  # if the desired marker is found
+                        # counter for entering the controlling, first 'window_size' values must be appended,
+                        # to perform filtering
+                        filter_count = 0
 
-                                        # trajectory is 1/25 of the vector towards the destination coordinates
-                                        trajectory = goal / 25
+                        mag_goal = 1  # set to 1, to enter the loop
+                        # initialize timeout
+                        start_time = time.time()
+                        elapsed_time = 0
 
-                                        # fly towards the marker
-                                        crazyflie.move(trajectory[2], -trajectory[0], -trajectory[1])
+                        # control loop -- approach marker until distance to goal is > 5cm
+                        while mag_goal > 0.1 and elapsed_time < 5:
+                            marker_ids, marker_corners = spm.detect_marker(image)  # detect markers in image
+                            if marker_ids is not None:  # if there is a marker
+                                for d, j in enumerate(
+                                        marker_ids):  # if multiple markers are in frame, iterate over them
+                                    if j == m:  # if the desired marker is found
 
-                                        # align towards the marker, 1/8 of the measured yaw-angle
-                                        # also convert from rad to degrees
-                                        crazyflie.turn(yaw_motion * 180 / (math.pi * 8))
+                                        start_time = time.time()  # marker found --> reset timeout
 
-                        elapsed_time = time.time() - start_time  # timer for loop iteration
+                                        # estimate pose of the marker
+                                        trans_vec, rot_vec, euler_angles = spm.estimate_marker_pose(marker_corners[d],
+                                                                                                    marker_size, matrix,
+                                                                                                    distortion)
+                                        # append measured values to moving average filter
+                                        motion_filter.append(trans_vec, euler_angles)
 
-                        filter_count += 1  # increment, to fill the filter with data before fetching filtered data
+                                        # show image
+                                        cv2.imshow('spm detection', image)
+                                        cv2.waitKey(1)
 
-                        # print time, that current loop-iteration took
-                        # print("RTT:" + str(time.time() - start_time))
+                                        # get filtered signal and execute trajectory
+                                        if filter_count > window_size:  # if enough data is available
+                                            # get lowpass-filtered data
+                                            linear_motion, yaw_motion = motion_filter.get_weighted_moving_average()
 
-                    crazyflie.stop()  # stop any motion
-                    print("Aligned!")
-                    time.sleep(2)  # wait 2 seconds
-                    crazyflie.back(1)  # backup 1m before searching for next marker
-                    break  # break loop --> go to next marker
+                                            # subtract vectors to get the trajectory to the destination coordinates
+                                            # divide by 100 to get from cm to m
+                                            goal = (linear_motion - DISTANCE) / 100
 
-        # when all markers are processed --> land
-        crazyflie.stop()  # stop any motion
-        print("crazyflie is landing")
-        crazyflie.land()  # land
-        stop_thread_flag = True  # terminate image thread
-        t1.join()  # join image thread
-        time.sleep(2)  # wait
-        client_socket.close()  # close WiFi socket
+                                            # calculate distance to marker,
+                                            mag_goal = math.sqrt(goal[0] ** 2 + goal[1] ** 2 + goal[2] ** 2)
 
-        # save motion data for analyzing
-        moving_averages_x = []
-        moving_averages_y = []
-        moving_averages_z = []
-        moving_averages_psi = []
+                                            # trajectory is 1/25 of the vector towards the destination coordinates
+                                            trajectory = goal / 25
 
-        w_moving_averages_x = []
-        w_moving_averages_y = []
-        w_moving_averages_z = []
-        w_moving_averages_psi = []
+                                            # fly towards the marker
+                                            crazyflie.move(trajectory[2], -trajectory[0], -trajectory[1])
 
-        i = 0
-        while i < len(motion_filter.data_x) - window_size + 1:
-            # Calculate the moving average of current window
-            window_average_x = np.average(motion_filter.data_x[i:i + window_size])
-            window_average_y = np.average(motion_filter.data_y[i:i + window_size])
-            window_average_z = np.average(motion_filter.data_z[i:i + window_size])
-            window_average_psi = np.average(motion_filter.data_psi[i:i + window_size])
+                                            # align towards the marker, 1/8 of the measured yaw-angle
+                                            # also convert from rad to degrees
+                                            crazyflie.turn(yaw_motion * 180 / (math.pi * 8))
 
-            # Calculate the weighted moving average of current window
+                            elapsed_time = time.time() - start_time  # timer for loop iteration
 
-            w_window_average_x = np.average(motion_filter.data_x[i:i + window_size], weights=motion_filter.weights)
-            w_window_average_y = np.average(motion_filter.data_y[i:i + window_size], weights=motion_filter.weights)
-            w_window_average_z = np.average(motion_filter.data_z[i:i + window_size], weights=motion_filter.weights)
-            w_window_average_psi = np.average(motion_filter.data_psi[i:i + window_size], weights=motion_filter.weights)
+                            filter_count += 1  # increment, to fill the filter with data before fetching filtered data
 
-            # Store the average of current
-            # window in moving average list
-            moving_averages_x.append(window_average_x)
-            moving_averages_y.append(window_average_y)
-            moving_averages_z.append(window_average_z)
-            moving_averages_psi.append(window_average_psi)
+                            # print time, that current loop-iteration took
+                            # print("RTT:" + str(time.time() - start_time))
 
-            w_moving_averages_x.append(w_window_average_x)
-            w_moving_averages_y.append(w_window_average_y)
-            w_moving_averages_z.append(w_window_average_z)
-            w_moving_averages_psi.append(w_window_average_psi)
+                        crazyflie.stop()  # stop any motion
+                        aligned = True
+                        print("----> Aligned to marker with id=" + str(m))
+                        time.sleep(2)  # wait 2 seconds
+                        crazyflie.back(0.3)  # backup before searching for next marker
+                        break  # break loop --> go to next marker
 
-            # Shift window to right by one position
-            i += 1
+                if not aligned:
+                    print("Could not align to marker with id=" + str(m) + "!")
 
-        data = {'unfiltered_x': np.asarray(motion_filter.data_x).tolist(),
-                'filtered_x': np.asarray(moving_averages_x).tolist(),
-                'w_filtered_x': np.asarray(w_moving_averages_x).tolist(),
 
-                'unfiltered_y': np.asarray(motion_filter.data_y).tolist(),
-                'filtered_y': np.asarray(moving_averages_y).tolist(),
-                'w_filtered_y': np.asarray(w_moving_averages_y).tolist(),
+        except exceptions.DeckException:
+            print("Error: At least one deck not detected")
 
-                'unfiltered_z': np.asarray(motion_filter.data_z).tolist(),
-                'filtered_z': np.asarray(moving_averages_z).tolist(),
-                'w_filtered_z': np.asarray(w_moving_averages_z).tolist(),
+        except exceptions.ImageFetchException:
+            print("Error: Image can not be fetched from AI deck")
 
-                'unfiltered_psi': np.asarray(motion_filter.data_psi).tolist(),
-                'filtered_psi': np.asarray(moving_averages_psi).tolist(),
-                'w_filtered_psi': np.asarray(w_moving_averages_psi).tolist(),
+        except exceptions.BatteryException as e:
+            print("Error: Battery-level too low [Voltage = " + str(round(e.battery_level, 2)) + "V]")
+            if e.cf_takeoff:  # if crazyflie already took off --> land
+                print("----> crazyflie is landing")
+                crazyflie.land()  # land
+                stop_thread_flag = True  # terminate image thread
+                t1.join()  # join image thread
+                time.sleep(2)  # wait
+                client_socket.close()  # close WiFi socket
 
-                }
-        t = datetime.datetime.now()
-        filename = "Log_" + str(t.year) + "-" + str(t.month) + "-" + str(t.day) + "T" + str(t.hour) + "-" + \
-                   str(t.minute) + "-" + str(t.second)
+        except KeyboardInterrupt:
+            print("Error: Application was stopped!")
+            print("----> crazyflie is landing")
+            crazyflie.land()  # land
+            stop_thread_flag = True  # terminate image thread
+            t1.join()  # join image thread
+            time.sleep(2)  # wait
+            client_socket.close()  # close WiFi socket
 
-        path = "plot/" + filename + ".yaml"
-        print("Save data...")
+        else:
+            # when all markers are processed --> land
+            print("----> crazyflie is landing")
+            crazyflie.land()  # land
+            stop_thread_flag = True  # terminate image thread
+            t1.join()  # join image thread
+            time.sleep(2)  # wait
+            client_socket.close()  # close WiFi socket
 
-        with open(path, "w") as f:
-            yaml.dump(data, f)
+            # save motion data for analyzing
+            moving_averages_x = []
+            moving_averages_y = []
+            moving_averages_z = []
+            moving_averages_psi = []
 
-        print("Log saved!")
+            w_moving_averages_x = []
+            w_moving_averages_y = []
+            w_moving_averages_z = []
+            w_moving_averages_psi = []
+
+            i = 0
+            while i < len(motion_filter.data_x) - window_size + 1:
+                # Calculate the moving average of current window
+                window_average_x = np.average(motion_filter.data_x[i:i + window_size])
+                window_average_y = np.average(motion_filter.data_y[i:i + window_size])
+                window_average_z = np.average(motion_filter.data_z[i:i + window_size])
+                window_average_psi = np.average(motion_filter.data_psi[i:i + window_size])
+
+                # Calculate the weighted moving average of current window
+
+                w_window_average_x = np.average(motion_filter.data_x[i:i + window_size], weights=motion_filter.weights)
+                w_window_average_y = np.average(motion_filter.data_y[i:i + window_size], weights=motion_filter.weights)
+                w_window_average_z = np.average(motion_filter.data_z[i:i + window_size], weights=motion_filter.weights)
+                w_window_average_psi = np.average(motion_filter.data_psi[i:i + window_size],
+                                                  weights=motion_filter.weights)
+
+                # Store the average of current
+                # window in moving average list
+                moving_averages_x.append(window_average_x)
+                moving_averages_y.append(window_average_y)
+                moving_averages_z.append(window_average_z)
+                moving_averages_psi.append(window_average_psi)
+
+                w_moving_averages_x.append(w_window_average_x)
+                w_moving_averages_y.append(w_window_average_y)
+                w_moving_averages_z.append(w_window_average_z)
+                w_moving_averages_psi.append(w_window_average_psi)
+
+                # Shift window to right by one position
+                i += 1
+
+            data = {'unfiltered_x': np.asarray(motion_filter.data_x).tolist(),
+                    'filtered_x': np.asarray(moving_averages_x).tolist(),
+                    'w_filtered_x': np.asarray(w_moving_averages_x).tolist(),
+
+                    'unfiltered_y': np.asarray(motion_filter.data_y).tolist(),
+                    'filtered_y': np.asarray(moving_averages_y).tolist(),
+                    'w_filtered_y': np.asarray(w_moving_averages_y).tolist(),
+
+                    'unfiltered_z': np.asarray(motion_filter.data_z).tolist(),
+                    'filtered_z': np.asarray(moving_averages_z).tolist(),
+                    'w_filtered_z': np.asarray(w_moving_averages_z).tolist(),
+
+                    'unfiltered_psi': np.asarray(motion_filter.data_psi).tolist(),
+                    'filtered_psi': np.asarray(moving_averages_psi).tolist(),
+                    'w_filtered_psi': np.asarray(w_moving_averages_psi).tolist(),
+
+                    }
+            t = datetime.datetime.now()
+            filename = "Log_" + str(t.year) + "-" + str(t.month) + "-" + str(t.day) + "T" + str(t.hour) + "-" + \
+                       str(t.minute) + "-" + str(t.second)
+
+            path = "plot/" + filename + ".yaml"
+            print("Save data...")
+
+            with open(path, "w") as f:
+                yaml.dump(data, f)
+
+            print("Log saved!")
+
+        finally:
+            print("Application ended!")

@@ -1,4 +1,5 @@
 import math
+
 import yaml
 import numpy as np
 import matplotlib.pyplot as plt
@@ -48,9 +49,10 @@ def plot_motion_data():
     plt.xlabel('Samples [n]')
     plt.ylabel('Offset [°]')
 
+    plt.show()
 
-def plot_difference_original_filtered():
 
+def plot_errors():
     # plot errors
     fig2 = plt.figure(figsize=(20, 10), num='Errors')
 
@@ -81,81 +83,28 @@ def plot_difference_original_filtered():
     plt.grid()
     plt.xlabel('Samples [n]')
     plt.ylabel('Deviation [°]')
+    plt.show()
 
 
-def plot_deviations():
+def plot_fft():
+    unf_x_fft = np.fft.fft(unfiltered_y)
+    wma_x_fft = np.fft.fft(w_filtered_y)
 
-    unfiltered_x_deviation = []
-    unfiltered_y_deviation = []
-    unfiltered_z_deviation = []
-    unfiltered_psi_deviation = []
+    fig3 = plt.figure(figsize=(20, 10), num='Fourier data')
 
-    filtered_x_deviation = []
-    filtered_y_deviation = []
-    filtered_z_deviation = []
-    filtered_psi_deviation = []
+    fig3.add_subplot(2, 2, 1, title="Translation in x (forward/backward)")
+    plt.plot(np.real(unf_x_fft), label="Original")
+    plt.plot(np.real(wma_x_fft), label="WMA")
 
-
-    for u in range(len(unfiltered_x)-1):
-        unfiltered_x_deviation.append(abs(unfiltered_x[u]-unfiltered_x[u+1]))
-        unfiltered_y_deviation.append(abs(unfiltered_y[u]-unfiltered_y[u+1]))
-        unfiltered_z_deviation.append(abs(unfiltered_z[u]-unfiltered_z[u+1]))
-        unfiltered_psi_deviation.append(abs(unfiltered_psi[u]-unfiltered_psi[u+1]))
-
-    for u in range(len(filtered_x)-1):
-        filtered_x_deviation.append(abs(w_filtered_x[u]-w_filtered_x[u+1]))
-        filtered_y_deviation.append(abs(w_filtered_y[u]-w_filtered_y[u+1]))
-        filtered_z_deviation.append(abs(w_filtered_z[u]-w_filtered_z[u+1]))
-        filtered_psi_deviation.append(abs(filtered_psi[u]-filtered_psi[u+1]))
-
-    unfiltered_x_deviation = np.array(unfiltered_x_deviation)
-    unfiltered_y_deviation = np.array(unfiltered_y_deviation)
-    unfiltered_z_deviation = np.array(unfiltered_z_deviation)
-    unfiltered_psi_deviation = np.array(unfiltered_psi_deviation)
-
-    filtered_x_deviation = np.array(filtered_x_deviation)
-    filtered_y_deviation = np.array(filtered_y_deviation)
-    filtered_z_deviation = np.array(filtered_z_deviation)
-    filtered_psi_deviation = np.array(filtered_psi_deviation)
-
-    fig3 = plt.figure(figsize=(20, 10), num='Errors')
-
-    fig3.add_subplot(2, 2, 1, title="Deviation in x")
-    plt.plot(unfiltered_x_deviation, label="unfiltered")
-    plt.plot(filtered_x_deviation, label="filtered")
     plt.legend()
     plt.grid()
     plt.xlabel('Samples [n]')
-    plt.ylabel('Deviation [cm]')
+    plt.ylabel('Distance [cm]')
+    plt.show()
 
-    fig3.add_subplot(2, 2, 2, title="Deviation in y")
-    plt.plot(unfiltered_y_deviation, label="unfiltered")
-    plt.plot(filtered_y_deviation, label="filtered")
-    plt.legend()
-    plt.grid()
-    plt.xlabel('Samples [n]')
-    plt.ylabel('Deviation [cm]')
-
-    fig3.add_subplot(2, 2, 3, title="Deviation in z")
-    plt.plot(unfiltered_z_deviation, label="unfiltered")
-    plt.plot(filtered_z_deviation, label="filtered")
-    plt.legend()
-    plt.grid()
-    plt.xlabel('Samples [n]')
-    plt.ylabel('Deviation [cm]')
-
-    fig3.add_subplot(2, 2, 4, title="Deviation in psi")
-    plt.plot(unfiltered_psi_deviation * 180 / math.pi, label="unfiltered")
-    plt.plot(filtered_psi_deviation * 180 / math.pi, label="filtered")
-    plt.legend()
-    plt.grid()
-    plt.xlabel('Samples [n]')
-    plt.ylabel('Deviation [°]')
-
-
-window_size = 7
+window_size = 3
 # read data
-with open("Log_2023-4-26T9-13-38.yaml") as f:
+with open("../plot/WMA_weights--quadr.yaml") as f:
     loaded_dict = yaml.safe_load(f)
     unf_x = loaded_dict.get('unfiltered_x')
     unf_y = loaded_dict.get('unfiltered_y')
@@ -200,7 +149,4 @@ for i in range(window_size - 1):
     w_filtered_z = np.insert(w_filtered_z, 0, w_filtered_z[0])
     w_filtered_psi = np.insert(w_filtered_psi, 0, w_filtered_psi[0])
 
-plot_deviations()
-plot_motion_data()
-
-plt.show()
+plot_fft()
