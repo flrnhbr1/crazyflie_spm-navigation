@@ -3,6 +3,7 @@ Created on  26.04.2023
 @author: Florian Huber
 """
 
+
 class ImageFetchException(Exception):
     """
     Raised when the image can not be fetched from the AI deck
@@ -21,6 +22,7 @@ class BatteryException(Exception):
     """
     Raised when the battery level is too low
     """
+
     def __init__(self, battery_level, cf_takeoff):
         """
          constructor for a crazyflie object
