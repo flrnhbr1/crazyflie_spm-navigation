@@ -10,7 +10,7 @@ import math
 import numpy as np
 
 # define aruco dictionary and parameters (parameters are default)
-AR_DIC = aruco.Dictionary_get(aruco.DICT_ARUCO_ORIGINAL)  # (aruco.DICT_6X6_1000)
+AR_DIC = aruco.Dictionary_get(aruco.DICT_ARUCO_ORIGINAL)
 AR_PAR = aruco.DetectorParameters_create()
 
 

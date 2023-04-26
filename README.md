@@ -92,14 +92,14 @@ https://github.com/abakisita/camera_calibration.
 After successfully calibrating the camera, the file calibration.yaml 
 is saved. This file has to be referenced afterwards in application.py (see below)
 ````python
-    with open('./calibrate_camera/calibration.yaml') as f:
-        loaded_dict = yaml.safe_load(f)
-        mtx = loaded_dict.get('camera_matrix')
-        dis = loaded_dict.get('dist_coeff')
-        matrix = np.array(mtx)
-        distortion = np.array(dis)
-        marker_size = 20  # size in cm
-    print("Camera calibration loaded")
+with open('./calibrate_camera/calibration.yaml') as f:
+    loaded_dict = yaml.safe_load(f)
+    mtx = loaded_dict.get('camera_matrix')
+    dis = loaded_dict.get('dist_coeff')
+    matrix = np.array(mtx)
+    distortion = np.array(dis)
+    marker_size = 20  # size in cm
+print("Camera calibration loaded")
 ````
 
 ### Set constants
@@ -122,11 +122,11 @@ DISTANCE = np.array([0, 0, 75])  # [cm]
 The ```TAKEOFF_HEIGHT``` is the initial height the crazyflie hovers after
 startup.  ```MAX_MARKER_ID``` is the highest ID in th environment. The application
 always starts searching at ID=0 and proceeds until the maximum id defined. 
-```DISTANCE``` is a array that defines the vector (with respect to the center of the marker),
+```DISTANCE``` is an array that defines the vector (with respect to the center of the marker),
 in which the crazyflie should align in front of every marker. The first value is the translation 
 in  left/right, the second value the translation in up/down and the last (here set to 0.75) is 
 the translation in forward/backward. In the upper example, the crazyflie will align directly
-in front of the center of the marker, with a distance of 0.75m.
+in front of the center of the marker, with a distance of 75cm.
 
 ### AI deck connection
 The first step of the main function, is to open a socket to the AI deck. The following code fragment
@@ -143,4 +143,4 @@ if __name__ == "__main__":
 ````
 
 So if a new deck is used, this is the default setting.
-However, it is possible to change this settings on the AI deck if needed. Be sure to also change it in the python code as well.
+However, it is possible to change these settings on the AI deck if needed. Be sure to also change it in the python code as well.

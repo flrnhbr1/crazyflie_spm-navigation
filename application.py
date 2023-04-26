@@ -6,7 +6,6 @@ Created on 23.11.2022
 
 import logging
 import math
-import sys
 import time
 import argparse
 import yaml
@@ -47,7 +46,7 @@ TAKEOFF_HEIGHT = 0.8
 
 # highest used marker id, start from id=0
 # marker type must be aruco original dictionary
-MAX_MARKER_ID = 1
+MAX_MARKER_ID = 2
 
 # define destination vector marker <--> crazyflie
 DISTANCE = np.array([0, 0, 75])  # [cm]
@@ -68,11 +67,11 @@ def get_cf_data(scf):
     with SyncLogger(scf, log_stabilizer) as logger:
         # logger.connect()
         for entry in logger:
-            data = entry[1]
-            vbat = data.get('pm.vbat')
-            yaw = data.get('stabilizer.yaw')
-            pitch = data.get('stabilizer.pitch')
-            roll = data.get('stabilizer.roll')
+            log_data = entry[1]
+            vbat = log_data.get('pm.vbat')
+            yaw = log_data.get('stabilizer.yaw')
+            pitch = log_data.get('stabilizer.pitch')
+            roll = log_data.get('stabilizer.roll')
             time.sleep(0.02)
             return vbat, yaw, pitch, roll
 
@@ -85,10 +84,10 @@ def rx_bytes(size):
              the received data in a bytearray
     """
 
-    data = bytearray()
-    while len(data) < size:
-        data.extend(client_socket.recv(size - len(data)))
-    return data
+    rx_data = bytearray()
+    while len(rx_data) < size:
+        rx_data.extend(client_socket.recv(size - len(rx_data)))
+    return rx_data
 
 
 def get_image_from_ai_deck():
@@ -465,7 +464,7 @@ if __name__ == "__main__":
                 for c, i in enumerate(marker_ids):  # if multiple markers are in frame, iterate over them
 
                     if i == m:  # if the desired marker is found
-                        # counter for entering the controlling, first 'window_size' values must be appended,
+                        # counter for entering the controlling; first 'window_size' values must be appended,
                         # to perform filtering
                         filter_count = 0
 
@@ -528,7 +527,7 @@ if __name__ == "__main__":
                         aligned = True
                         print("----> Aligned to marker with id=" + str(m))
                         time.sleep(2)  # wait 2 seconds
-                        crazyflie.back(0.3)  # backup before searching for next marker
+                        crazyflie.back(0.4)  # backup before searching for next marker
                         break  # break loop --> go to next marker
 
                 if not aligned:
