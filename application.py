@@ -47,7 +47,7 @@ TAKEOFF_HEIGHT = 0.8
 
 # highest used marker id, start from id=0
 # marker type must be aruco original dictionary
-MAX_MARKER_ID = 2
+MAX_MARKER_ID = 1
 
 # define destination vector marker <--> crazyflie
 DISTANCE = np.array([0, 0, 75])  # [cm]
@@ -327,7 +327,7 @@ class CF:
         :return: -
         """
 
-        self.mc.move_distance(x, y, z, velocity=0.25)
+        self.mc.move_distance(x, y, z, velocity=0.15)
 
 
 if __name__ == "__main__":
