@@ -155,7 +155,7 @@ def plot_deviations():
 
 window_size = 7
 # read data
-with open("Log_2023-4-26T9-24-55.yaml") as f:
+with open("filter_data/1byx_7.yaml") as f:
     loaded_dict = yaml.safe_load(f)
     unf_x = loaded_dict.get('unfiltered_x')
     unf_y = loaded_dict.get('unfiltered_y')

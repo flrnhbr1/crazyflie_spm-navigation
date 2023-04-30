@@ -104,7 +104,7 @@ def plot_fft():
 
 window_size = 3
 # read data
-with open("../plot/WMA_weights--quadr.yaml") as f:
+with open("../plot/filter_data/WMA_weights--quadr.yaml") as f:
     loaded_dict = yaml.safe_load(f)
     unf_x = loaded_dict.get('unfiltered_x')
     unf_y = loaded_dict.get('unfiltered_y')
