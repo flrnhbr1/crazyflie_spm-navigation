@@ -43,13 +43,13 @@ Now follow the guide in this link:
 https://www.bitcraze.io/documentation/repository/aideck-gap8-examples/master/test-functions/wifi-streamer/
 
 Note: Depending on the goal, set this variable in the wifi-img-streamer.c file:
- ```
+````python
 static StreamerMode_t streamerMode = RAW_ENCODING
-```
+````
 or
- ```
+````python
 static StreamerMode_t streamerMode = JPEG_ENCODING
-```
+````
 Now application.py can access the image-stream, when the PC is connected to the AI deck wi-fi
 
 ## Python requirements for the main application 
