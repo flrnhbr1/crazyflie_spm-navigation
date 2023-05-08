@@ -46,7 +46,7 @@ TAKEOFF_HEIGHT = 0.8
 
 # highest used marker id, start from id=0
 # marker type must be aruco original dictionary
-MAX_MARKER_ID = 2
+MAX_MARKER_ID = 0
 
 # define destination vector marker <--> crazyflie
 DISTANCE = np.array([0, 0, 75])  # [cm]
@@ -100,8 +100,12 @@ def get_image_from_ai_deck():
     while True:
         global image
         global stop_thread_flag
+        global temp_timer
         if stop_thread_flag:
             break
+        ### start timer
+        timeing_start = time.time()
+
         packet_info_raw = rx_bytes(4)
         [length, _, _] = struct.unpack('<HBB', packet_info_raw)
         img_header = rx_bytes(length - 2)
@@ -124,13 +128,16 @@ def get_image_from_ai_deck():
             else:
                 # JPEG encoded image format streamed
                 # stores the image temporary in this path
-                with open("./wifi_streaming/imgBuffer/img.jpeg", "wb") as im:
+                with open("../wifi_streaming/imgBuffer/img.jpeg", "wb") as im:
                     im.write(img_stream)
                 np_arr = np.frombuffer(img_stream, np.uint8)
                 img_gray = cv2.imdecode(np_arr, cv2.IMREAD_UNCHANGED)
 
             # set global variable
             image = img_gray
+
+            ### save time
+            temp_timer = time.time() - timeing_start
 
 
 class MovingAverageFilter:
@@ -345,7 +352,7 @@ if __name__ == "__main__":
     print("Socket connected")
 
     # load calibration-data of camera
-    with open('./calibrate_camera/calibration.yaml') as f:
+    with open('../calibrate_camera/calibration.yaml') as f:
         loaded_dict = yaml.safe_load(f)
         mtx = loaded_dict.get('camera_matrix')
         dis = loaded_dict.get('dist_coeff')
@@ -369,6 +376,15 @@ if __name__ == "__main__":
     # initiate filter for noise filtering
     window_size = 7  # window size of the moving average filter
     motion_filter = MovingAverageFilter(window_size)
+
+    # logging for timing
+    camera_time = []
+    detection_time = []
+    estimation_time = []
+    calculation_time = []
+    exec_time = []
+    timer_start = 0
+    temp_timer = 0
 
     # starting the main functionality
 
@@ -431,7 +447,7 @@ if __name__ == "__main__":
                 aligned = False
 
                 # start turning to find marker with id == m
-                crazyflie.start_turning(-30)
+                crazyflie.start_turning(-45)
 
                 # initialize timer
                 start_time = time.time()
@@ -475,11 +491,26 @@ if __name__ == "__main__":
 
                         # control loop -- approach marker until distance to goal is > 5cm
                         while mag_goal > 0.1 and elapsed_time < 5:
+
+                            ### start logger timer
+                            timer_start = time.time()
+
+                            ### save camera time
+                            if filter_count > window_size:
+                                camera_time.append(temp_timer)
+                                timer_start = time.time()
+
                             marker_ids, marker_corners = spm.detect_marker(image)  # detect markers in image
+
                             if marker_ids is not None:  # if there is a marker
                                 for d, j in enumerate(
                                         marker_ids):  # if multiple markers are in frame, iterate over them
                                     if j == m:  # if the desired marker is found
+
+                                        ### save detetction time
+                                        if filter_count > window_size:
+                                            detection_time.append(time.time() - timer_start)
+                                            timer_start = time.time()
 
                                         start_time = time.time()  # marker found --> reset timeout
 
@@ -487,6 +518,12 @@ if __name__ == "__main__":
                                         trans_vec, rot_vec, euler_angles = spm.estimate_marker_pose(marker_corners[d],
                                                                                                     marker_size, matrix,
                                                                                                     distortion)
+
+                                        ### save estimation time
+                                        if filter_count > window_size:
+                                            estimation_time.append(time.time() - timer_start)
+                                            timer_start = time.time()
+
                                         # append measured values to moving average filter
                                         motion_filter.append(trans_vec, euler_angles)
 
@@ -509,6 +546,10 @@ if __name__ == "__main__":
                                             # trajectory is 1/25 of the vector towards the destination coordinates
                                             trajectory = goal / 25
 
+                                            ### save calculation time
+                                            calculation_time.append(time.time()-timer_start)
+                                            timer_start = time.time()
+
                                             # fly towards the marker
                                             crazyflie.move(trajectory[2], -trajectory[0], -trajectory[1])
 
@@ -516,10 +557,13 @@ if __name__ == "__main__":
                                             # also convert from rad to degrees
                                             crazyflie.turn(yaw_motion * 180 / (math.pi * 8))
 
+                                            ### save execution time
+                                            exec_time.append(time.time() - timer_start)
+
                             elapsed_time = time.time() - start_time  # timer for loop iteration
 
                             filter_count += 1  # increment, to fill the filter with data before fetching filtered data
-
+                            print(mag_goal)
                             # print time, that current loop-iteration took
                             # print("RTT:" + str(time.time() - start_time))
 
@@ -527,7 +571,7 @@ if __name__ == "__main__":
                         aligned = True
                         print("----> Aligned to marker with id=" + str(m))
                         time.sleep(2)  # wait 2 seconds
-                        crazyflie.back(0.6)  # backup before searching for next marker
+                        crazyflie.back(0.4)  # backup before searching for next marker
                         break  # break loop --> go to next marker
 
                 if not aligned:
@@ -568,70 +612,18 @@ if __name__ == "__main__":
             time.sleep(2)  # wait
             client_socket.close()  # close WiFi socket
 
-            # save motion data for analyzing
-            moving_averages_x = []
-            moving_averages_y = []
-            moving_averages_z = []
-            moving_averages_psi = []
-
-            w_moving_averages_x = []
-            w_moving_averages_y = []
-            w_moving_averages_z = []
-            w_moving_averages_psi = []
-
-            i = 0
-            while i < len(motion_filter.data_x) - window_size + 1:
-                # Calculate the moving average of current window
-                window_average_x = np.average(motion_filter.data_x[i:i + window_size])
-                window_average_y = np.average(motion_filter.data_y[i:i + window_size])
-                window_average_z = np.average(motion_filter.data_z[i:i + window_size])
-                window_average_psi = np.average(motion_filter.data_psi[i:i + window_size])
-
-                # Calculate the weighted moving average of current window
-
-                w_window_average_x = np.average(motion_filter.data_x[i:i + window_size], weights=motion_filter.weights)
-                w_window_average_y = np.average(motion_filter.data_y[i:i + window_size], weights=motion_filter.weights)
-                w_window_average_z = np.average(motion_filter.data_z[i:i + window_size], weights=motion_filter.weights)
-                w_window_average_psi = np.average(motion_filter.data_psi[i:i + window_size],
-                                                  weights=motion_filter.weights)
-
-                # Store the average of current
-                # window in moving average list
-                moving_averages_x.append(window_average_x)
-                moving_averages_y.append(window_average_y)
-                moving_averages_z.append(window_average_z)
-                moving_averages_psi.append(window_average_psi)
-
-                w_moving_averages_x.append(w_window_average_x)
-                w_moving_averages_y.append(w_window_average_y)
-                w_moving_averages_z.append(w_window_average_z)
-                w_moving_averages_psi.append(w_window_average_psi)
-
-                # Shift window to right by one position
-                i += 1
-
-            data = {'unfiltered_x': np.asarray(motion_filter.data_x).tolist(),
-                    'filtered_x': np.asarray(moving_averages_x).tolist(),
-                    'w_filtered_x': np.asarray(w_moving_averages_x).tolist(),
-
-                    'unfiltered_y': np.asarray(motion_filter.data_y).tolist(),
-                    'filtered_y': np.asarray(moving_averages_y).tolist(),
-                    'w_filtered_y': np.asarray(w_moving_averages_y).tolist(),
-
-                    'unfiltered_z': np.asarray(motion_filter.data_z).tolist(),
-                    'filtered_z': np.asarray(moving_averages_z).tolist(),
-                    'w_filtered_z': np.asarray(w_moving_averages_z).tolist(),
-
-                    'unfiltered_psi': np.asarray(motion_filter.data_psi).tolist(),
-                    'filtered_psi': np.asarray(moving_averages_psi).tolist(),
-                    'w_filtered_psi': np.asarray(w_moving_averages_psi).tolist(),
-
+            data = {'camera': np.asarray(camera_time).tolist(),
+                    'detection': np.asarray(detection_time).tolist(),
+                    'estimation': np.asarray(estimation_time).tolist(),
+                    'calculation': np.asarray(calculation_time).tolist(),
+                    'execution': np.asarray(exec_time).tolist()
                     }
+
             t = datetime.datetime.now()
-            filename = "Log_" + str(t.year) + "-" + str(t.month) + "-" + str(t.day) + "T" + str(t.hour) + "-" + \
+            filename = "Log_fullTiming_" + str(t.year) + "-" + str(t.month) + "-" + str(t.day) + "T" + str(t.hour) + "-" + \
                        str(t.minute) + "-" + str(t.second)
 
-            path = "plot/filter_data/" + filename + ".yaml"
+            path = "../plot/timing_data/" + filename + ".yaml"
             print("Save data...")
 
             with open(path, "w") as f:
