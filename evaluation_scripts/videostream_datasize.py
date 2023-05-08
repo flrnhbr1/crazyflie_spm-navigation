@@ -87,7 +87,7 @@ while counter <= 2000:
 
             cv2.waitKey(1)
         else:
-            with open("../_tryouts/img.jpeg", "wb") as f:
+            with open("../functionality_tests/img.jpeg", "wb") as f:
                 f.write(imgStream)
             nparr = np.frombuffer(imgStream, np.uint8)
             decoded = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED)

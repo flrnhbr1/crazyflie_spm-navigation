@@ -1,6 +1,25 @@
 # crazyflie_spm-navigation
 
-As first step clone this repository 
+Description of folders and files:
+> #### / calibrate_camera
+>>Functions, images and other resources for calibrating the AI-deck camera
+> #### / evaluation_scripts
+>> Scripts that produce data for evaluation and plotting (e.g., battery data, timing)
+> #### / functionality_tests
+>> python files that were used to test single functionalities of the application independant
+> #### / plot
+>> python files to plot the data produced by evaluation scripts or the application; also holds the data files
+> #### / wifi streaming
+>> if images are transmitted as jpeg, the image must be temporarily stored; This happens here
+> #### application.py
+>> main navigation application
+> #### custom_exceptions.py
+>> library with custom exceptions, used in the main application for error handling
+> #### square_planar_marker.py
+>> library for spm functions, e.g.,detection, pose estimation
+
+
+To use the application, first clone this repository 
 ```shell
 git clone https://github.com/flrnhbr1/crazyflie_spm-navigation.git
 ```
@@ -23,7 +42,11 @@ sudo apt install build-essential libncurses5-dev
 Now follow the guide in this link:
 https://www.bitcraze.io/documentation/repository/aideck-gap8-examples/master/test-functions/wifi-streamer/
 
-Note: for good performance make sure to set this variable in the wifi-img-streamer.c file:
+Note: Depending on the goal, set this variable in the wifi-img-streamer.c file:
+ ```
+static StreamerMode_t streamerMode = RAW_ENCODING
+```
+or
  ```
 static StreamerMode_t streamerMode = JPEG_ENCODING
 ```
