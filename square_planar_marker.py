@@ -44,6 +44,7 @@ def estimate_marker_pose(corners, mark_size, mtrx, dist):
 
     # estimate translation and rotation vector of marker
     r_vec, t_vec, _ = aruco.estimatePoseSingleMarkers(corners, mark_size, mtrx, dist)
+    t_vec[0, 0, 2] -= t_vec[0, 0, 2] * 0.1  # correction -10% (found in experiments)
     # transform rotation vector to euler angles
     eul_angles = transform_r_vec_to_euler_angles(r_vec)
 

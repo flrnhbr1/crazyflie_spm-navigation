@@ -85,13 +85,7 @@ if __name__ == '__main__':
 
         print("Both decks detected :)")
 
-        #take_off_simple(scf)
+        take_off_simple(scf)
 
         print("TAKEOFF")
 
-        mc = MotionCommander(scf)
-        mc.take_off(height=0.5, velocity=0.5)
-        time.sleep(1)
-        mc.move_distance(1, 0, 0, velocity=0.2)
-        print("NOW")
-        mc.land(velocity=0.5)

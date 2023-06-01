@@ -1,4 +1,5 @@
 import argparse
+import math
 import socket
 import struct
 import time
@@ -7,6 +8,7 @@ import cv2
 import cv2.aruco as aruco
 import numpy as np
 import yaml
+import square_planar_marker as spm
 
 CAMERA_OFFSET = 0
 
@@ -73,6 +75,44 @@ def print_markerinfo_on_image(img, corners, distance, id):
     return img
 
 
+def print_markerinfo_on_image_new(img, corners, distance, id, t_vec, r_vec, eul_angles):
+
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    color = (50, 160, 200)
+
+    # save corners in array
+    pts = np.array([[int(corners[0, 0]), int(corners[0, 1])], [int(corners[1, 0]), int(corners[1, 1])],
+                    [int(corners[2, 0]), int(corners[2, 1])], [int(corners[3, 0]), int(corners[3, 1])]], np.int32)
+    pts = pts.reshape((-1, 1, 2))
+    # print polygon over aruco marker
+    cv2.polylines(img, [pts], True, color, 2)    # print distance between camera and marker on image
+    distance = round(distance, 2)
+    text_dist = str(distance) + "cm"
+    text_id = "ID = " + str(id)
+
+    str_id = "marker id = " + str(id)
+    pos_id = (10, 10)
+    t_vec[0,0,2] -= t_vec[0,0,2]*0.1
+    str_t_vec = "t_vec= " + str(np.round(t_vec[0, 0], decimals=3)) + " -->[tx ty tz]"
+    pos_t_vec = (10, 20)
+    eul_angles = eul_angles * 180 / (math.pi)
+    str_eul = "eul_angles= " + str(np.round(eul_angles, decimals=3)) + " -->[a b y]"
+    pos_eul = (10, 30)
+    # print translation vector and euler angles
+    cv2.putText(img, str_id, pos_id, font, 0.3, color, 1, cv2.LINE_AA)
+    cv2.putText(img, str_t_vec, pos_t_vec, font, 0.3, color, 1, cv2.LINE_AA)
+    cv2.putText(img, str_eul, pos_eul, font, 0.3, color, 1, cv2.LINE_AA)
+
+    return img
+
+
+
+
+
+
+
+
+
 def main():
 
     start = time.time()
@@ -113,14 +153,21 @@ def main():
 
             # img_color is only used for showing on screen
             img_color = cv2.cvtColor(img_gray, cv2.COLOR_BayerBG2BGRA)
+
+
+
             corners, ids = marker_detection(img_gray)
             if corners is not None:
                 i = 0
                 for c in corners:
-                    r_vec, t_vec, _ = aruco.estimatePoseSingleMarkers(c, marker_size, matrix, distortion)
-                    distance = t_vec[0, 0, 2] - CAMERA_OFFSET
-                    img_color = print_markerinfo_on_image(img_color, c[0], distance, ids[i])
-                    cv2.drawFrameAxes(img_color, matrix, distortion, r_vec, t_vec, 5)
+                    #r_vec, t_vec, _ = aruco.estimatePoseSingleMarkers(c, marker_size, matrix, distortion)
+                    trans_vec, rot_vec, euler_angles = spm.estimate_marker_pose(c,
+                                                                                marker_size, matrix,
+                                                                                distortion)
+                    distance = trans_vec[0, 0, 2] - CAMERA_OFFSET
+                    #img_color = print_markerinfo_on_image(img_color, c[0], distance, ids[i])
+                    img_color = print_markerinfo_on_image_new(img_color, c[0], distance, ids[i], trans_vec, rot_vec, euler_angles )
+                    #cv2.drawFrameAxes(img_color, matrix, distortion, r_vec, t_vec, 5)
                     i += 1
             cv2.imshow('spm detection', img_color)
             cv2.waitKey(1)

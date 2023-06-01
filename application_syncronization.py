@@ -42,11 +42,11 @@ LOW_BAT = 3.0
 URI = uri_helper.uri_from_env(default='radio://0/100/2M/E7E7E7E701')
 
 # default height of takeoff
-TAKEOFF_HEIGHT = 0.8
+TAKEOFF_HEIGHT = 1
 
 # highest used marker id, start from id=0
 # marker type must be aruco original dictionary
-MAX_MARKER_ID = 2
+MAX_MARKER_ID = 0
 
 # define destination vector marker <--> crazyflie
 DISTANCE = np.array([0, 0, 75])  # [cm]
@@ -148,6 +148,7 @@ class MovingAverageFilter:
         self.data_y = []
         self.data_z = []
         self.data_psi = []
+        self.timer = []
         self.weights = []
 
         # define weights
@@ -165,6 +166,7 @@ class MovingAverageFilter:
         self.data_z.append(t_vec[0, 0, 1])
         self.data_x.append(t_vec[0, 0, 2])
         self.data_psi.append(eul_angles[1])
+        self.timer.append(time.time())
 
     def get_moving_average(self):
         """
@@ -259,7 +261,7 @@ class CF:
         :return: -
         """
 
-        self.mc.take_off(height=height, velocity=1)
+        self.mc.take_off(height=height, velocity=0.4)
 
     def stop(self):
         """
@@ -327,6 +329,17 @@ class CF:
         """
 
         self.mc.move_distance(x, y, z, velocity=0.15)
+
+    def move_fast(self, x, y, z):
+        """
+        crazyflie moves in straight line
+        :param x: forward/backward
+        :param y: left/right
+        :param z: up/down
+        :return: -
+        """
+
+        self.mc.move_distance(x, y, z, velocity=0.5)
 
 
 if __name__ == "__main__":
@@ -473,8 +486,10 @@ if __name__ == "__main__":
                         start_time = time.time()
                         elapsed_time = 0
 
+                        makeSyncMove = True
                         # control loop -- approach marker until distance to goal is > 5cm
-                        while mag_goal > 0.1 and elapsed_time < 5:
+                        while mag_goal > 0.05 and elapsed_time < 5:
+                            print(mag_goal)
                             marker_ids, marker_corners = spm.detect_marker(image)  # detect markers in image
                             if marker_ids is not None:  # if there is a marker
                                 for d, j in enumerate(
@@ -524,10 +539,63 @@ if __name__ == "__main__":
                             # print("RTT:" + str(time.time() - start_time))
 
                         crazyflie.stop()  # stop any motion
+
+                        # append measured values to moving average filter
+                        counter = 0
+                        while counter < 20:
+                            marker_ids, marker_corners = spm.detect_marker(image)
+                            trans_vec, rot_vec, euler_angles = spm.estimate_marker_pose(marker_corners[d],
+                                                                                        marker_size, matrix,
+                                                                                        distortion)
+                            # append measured values to moving average filter
+                            motion_filter.append(trans_vec, euler_angles)
+                            counter += 1
+
+                        counter = 0
+                        while counter < 20:
+                            crazyflie.move(-0.05, 0, 0)
+                            marker_ids = None
+                            while marker_ids is None:
+                                print("search")
+                                marker_ids, marker_corners = spm.detect_marker(image)
+
+                            trans_vec, rot_vec, euler_angles = spm.estimate_marker_pose(marker_corners[d],
+                                                                                        marker_size, matrix,
+                                                                                        distortion)
+                            # append measured values to moving average filter
+                            motion_filter.append(trans_vec, euler_angles)
+                            counter += 1
+
+                        counter = 0
+                        while counter < 20:
+                            crazyflie.move(0.05, 0, 0)
+                            marker_ids = None
+                            while marker_ids is None:
+                                print("search")
+                                marker_ids, marker_corners = spm.detect_marker(image)
+                            trans_vec, rot_vec, euler_angles = spm.estimate_marker_pose(marker_corners[d],
+                                                                                        marker_size, matrix,
+                                                                                        distortion)
+                            # append measured values to moving average filter
+                            motion_filter.append(trans_vec, euler_angles)
+                            counter += 1
+
+                        counter = 0
+                        while counter < 20:
+                            marker_ids, marker_corners = spm.detect_marker(image)
+                            trans_vec, rot_vec, euler_angles = spm.estimate_marker_pose(marker_corners[d],
+                                                                                        marker_size, matrix,
+                                                                                        distortion)
+                            # append measured values to moving average filter
+                            motion_filter.append(trans_vec, euler_angles)
+                            counter += 1
+
+
+
                         aligned = True
                         print("----> Aligned to marker with id=" + str(m))
                         time.sleep(2)  # wait 2 seconds
-                        crazyflie.back(0.6)  # backup before searching for next marker
+                        #crazyflie.back(0.6)  # backup before searching for next marker
                         break  # break loop --> go to next marker
 
                 if not aligned:
@@ -559,7 +627,7 @@ if __name__ == "__main__":
             time.sleep(2)  # wait
             client_socket.close()  # close WiFi socket
 
-        else:
+        finally:
             # when all markers are processed --> land
             print("----> crazyflie is landing")
             crazyflie.land()  # land
@@ -626,6 +694,8 @@ if __name__ == "__main__":
                     'filtered_psi': np.asarray(moving_averages_psi).tolist(),
                     'w_filtered_psi': np.asarray(w_moving_averages_psi).tolist(),
 
+                    'time': np.asarray(motion_filter.timer).tolist(),
+
                     }
             t = datetime.datetime.now()
             filename = "Log_" + str(t.year) + "-" + str(t.month) + "-" + str(t.day) + "T" + str(t.hour) + "-" + \
@@ -639,11 +709,4 @@ if __name__ == "__main__":
 
             print("Log saved!")
 
-        finally:
-            # when all markers are processed --> land
-            print("----> crazyflie is landing")
-            crazyflie.land()  # land
-            t1.join()  # join image thread
-            time.sleep(2)  # wait
-            client_socket.close()  # close WiFi socket
-            print("Application ended!")
+
