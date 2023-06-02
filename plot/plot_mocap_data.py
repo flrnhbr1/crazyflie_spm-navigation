@@ -2,7 +2,7 @@ import csv
 import matplotlib.pyplot as plt
 import numpy as np
 
-filename = open('/Users/florianhuber/Documents/Uni/Bachelor_Thesis/optitrack_logs/spm_nav_002ed.csv')
+filename = open('/Users/florianhuber/Documents/Uni/Bachelor_Thesis/optitrack_logs/Take 2023-06-01_10-47-57_ed.csv')
 
 # creating dictreader object
 file = csv.DictReader(filename)
