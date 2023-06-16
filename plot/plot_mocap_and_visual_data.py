@@ -83,7 +83,7 @@ time_mocap = np.array(time_mocap, float)
 # sync_begin = 76
 # spm_rot_psi += 42.796589
 
-## for log 2023-06-14_14-5-23   -->     pretty good performance
+## for log 2023-06-14_14-1-48   -->     pretty good performance
 # peak_visual = 1686744097.8504179 - start_time
 # peak_mocap = 20.683333
 # shift = peak_mocap - peak_visual
