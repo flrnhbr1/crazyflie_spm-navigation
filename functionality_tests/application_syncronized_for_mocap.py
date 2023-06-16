@@ -42,7 +42,7 @@ LOW_BAT = 3.0
 URI = uri_helper.uri_from_env(default='radio://0/100/2M/E7E7E7E701')
 
 # default height of takeoff
-TAKEOFF_HEIGHT = 1
+TAKEOFF_HEIGHT = 0.5
 
 # highest used marker id, start from id=0
 # marker type must be aruco original dictionary
@@ -124,7 +124,7 @@ def get_image_from_ai_deck():
             else:
                 # JPEG encoded image format streamed
                 # stores the image temporary in this path
-                with open("./wifi_streaming/imgBuffer/img.jpeg", "wb") as im:
+                with open("../wifi_streaming/imgBuffer/img.jpeg", "wb") as im:
                     im.write(img_stream)
                 np_arr = np.frombuffer(img_stream, np.uint8)
                 img_gray = cv2.imdecode(np_arr, cv2.IMREAD_UNCHANGED)
@@ -358,7 +358,7 @@ if __name__ == "__main__":
     print("Socket connected")
 
     # load calibration-data of camera
-    with open('./calibrate_camera/calibration.yaml') as f:
+    with open('../calibrate_camera/calibration.yaml') as f:
         loaded_dict = yaml.safe_load(f)
         mtx = loaded_dict.get('camera_matrix')
         dis = loaded_dict.get('dist_coeff')

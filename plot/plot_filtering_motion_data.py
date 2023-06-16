@@ -194,7 +194,7 @@ def plot_dev_averages():
 
 window_size = 7
 # read data
-with open("./filter_data/Log_2023-6-1T10-47-57.yaml") as f:
+with open("./filter_data/Log_2023-6-14T14-1-48.yaml") as f:
         loaded_dict = yaml.safe_load(f)
         unf_x = loaded_dict.get('unfiltered_x')
         unf_y = loaded_dict.get('unfiltered_y')

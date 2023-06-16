@@ -7,12 +7,12 @@ import numpy as np
 
 # load visual data
 # read data
-with open("filter_data/Log_2023-6-1T10-58-29.yaml") as f:
+with open("./filter_data/Log_2023-6-14T14-3-24.yaml") as f:
     loaded_dict = yaml.safe_load(f)
-    unf_x = loaded_dict.get('w_filtered_x')
-    unf_y = loaded_dict.get('w_filtered_y')
-    unf_z = loaded_dict.get('w_filtered_z')
-    unf_psi = loaded_dict.get('filtered_psi')
+    unf_x = loaded_dict.get('unfiltered_x')
+    unf_y = loaded_dict.get('unfiltered_y')
+    unf_z = loaded_dict.get('unfiltered_z')
+    unf_psi = loaded_dict.get('unfiltered_psi')
     time_vis = loaded_dict.get('time')
 
 unfiltered_x = np.array(unf_x)
@@ -28,8 +28,7 @@ for i in range(len(time_vis)):
 time_visual = np.array(time_vis)
 
 # load mocap data
-filename = open('/Users/florianhuber/Documents/Uni/Bachelor_Thesis/crazyflie_spm-navigation/plot/'
-                'optitrack_logs/Take 2023-06-01_10-58-29_ed.csv')
+filename = open("./optitrack_logs/Take 2023-06-14_14-3-24_ed.csv")
 # creating dictreader object
 file = csv.DictReader(filename)
 # creating empty lists
@@ -66,12 +65,41 @@ spm_rot_psi = np.array(spm_rot_psi, float)
 time_mocap = np.array(time_mocap, float)
 
 # find shift to sync signals
-peak_visual = 1685609896.565727 - start_time
-peak_mocap = 27.033333
+
+## for log 2023-06-01_10-58-29
+# peak_visual = 1685609896.565727 - start_time
+# peak_mocap = 27.033333
+# shift = peak_mocap - peak_visual
+# time_visual += shift
+# signal_begin = 0
+# sync_begin = 107-10  # -window size+3
+
+## for log 2023-06-14_14-5-23   -->     pretty good performance unless yaw
+# peak_visual = 1686744312.253835 - start_time
+# peak_mocap = 17.233333
+# shift = peak_mocap - peak_visual
+# time_visual += shift
+# signal_begin = 0
+# sync_begin = 76
+# spm_rot_psi += 42.796589
+
+## for log 2023-06-14_14-5-23   -->     pretty good performance
+# peak_visual = 1686744097.8504179 - start_time
+# peak_mocap = 20.683333
+# shift = peak_mocap - peak_visual
+# time_visual += shift
+# signal_begin = 0
+# sync_begin = 76
+# spm_rot_psi += 42.796589
+
+## for log 2023-06-14_14-3-24   -->     best performance
+peak_visual = 1686744193.8532438 - start_time
+peak_mocap = 19.933333
 shift = peak_mocap - peak_visual
 time_visual += shift
-signal_begin = 8
-sync_begin = 107-10  # -window size+3
+signal_begin = 0
+sync_begin = 84-2
+spm_rot_psi += 42.809715
 
 # resample mocap data
 time_mocap_resampled = []
@@ -138,7 +166,7 @@ plt.ylabel('Angle [°]')
 
 fig2 = plt.figure(figsize=(20, 10), num='Deviation of Visual and MoCap data')
 
-fig2.add_subplot(2, 2, 1, title="Deviation in x-direction")
+fig2.add_subplot(2, 2, 1, title="Absolute deviation in x-direction")
 plt.plot(time_visual[signal_begin:sync_begin],
          abs(unfiltered_x[signal_begin:sync_begin] - signal_mocap_x_resampled[signal_begin:sync_begin]))
 plt.axhline(np.average(abs(unfiltered_x[signal_begin:sync_begin] - signal_mocap_x_resampled[signal_begin:sync_begin])),
@@ -147,7 +175,7 @@ plt.grid()
 plt.xlabel('Time [s]')
 plt.ylabel('Deviation [cm]')
 
-fig2.add_subplot(2, 2, 2, title="Difference in y-direction")
+fig2.add_subplot(2, 2, 2, title="Absolute difference in y-direction")
 plt.plot(time_visual[signal_begin:sync_begin],
          abs(unfiltered_y[signal_begin:sync_begin] - signal_mocap_y_resampled[signal_begin:sync_begin]))
 plt.axhline(np.average(abs(unfiltered_y[signal_begin:sync_begin] - signal_mocap_y_resampled[signal_begin:sync_begin])),
@@ -156,7 +184,7 @@ plt.grid()
 plt.xlabel('Time [s]')
 plt.ylabel('Deviation [cm]')
 
-fig2.add_subplot(2, 2, 3, title="Difference in z-direction")
+fig2.add_subplot(2, 2, 3, title="Absolute difference in z-direction")
 plt.plot(time_visual[signal_begin:sync_begin],
          abs(unfiltered_z[signal_begin:sync_begin] - signal_mocap_z_resampled[signal_begin:sync_begin]))
 plt.axhline(np.average(abs(unfiltered_z[signal_begin:sync_begin] - signal_mocap_z_resampled[signal_begin:sync_begin])),
@@ -165,7 +193,7 @@ plt.grid()
 plt.xlabel('Time [s]')
 plt.ylabel('Deviation [cm]')
 
-fig2.add_subplot(2, 2, 4, title="Difference in yaw-angle")
+fig2.add_subplot(2, 2, 4, title="Absolute difference in yaw-angle")
 plt.plot(time_visual[signal_begin:sync_begin],
          abs(unfiltered_psi[signal_begin:sync_begin] - signal_mocap_psi_resampled[signal_begin:sync_begin]))
 plt.axhline(np.average(abs(unfiltered_psi[signal_begin:sync_begin] - signal_mocap_psi_resampled[signal_begin:sync_begin])),
