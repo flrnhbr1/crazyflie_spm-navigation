@@ -37,3 +37,13 @@ plt.xlabel('Samples [n]')
 plt.ylabel('Time [s]')
 
 plt.show()
+
+var_raw = np.var(rtt_raw)
+var_jpg = np.var(rtt_jpg)
+
+u_raw = math.sqrt(var_raw/len(rtt_raw))
+u_jpg = math.sqrt(var_jpg/len(rtt_jpg))
+
+print("JPG: " + str(avg_jpg) + "(" + str(u_jpg) + ")")
+print("RAW: " + str(avg_raw) + "(" + str(u_raw) + ")")
+

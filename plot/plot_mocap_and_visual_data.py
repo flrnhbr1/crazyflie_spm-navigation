@@ -64,6 +64,11 @@ cf_rot_psi = np.array(cf_rot_psi, float)
 spm_rot_psi = np.array(spm_rot_psi, float)
 time_mocap = np.array(time_mocap, float)
 
+# apply correction of rigid body center to camera and spm center
+cf_pos_x -= 3
+cf_pos_z -= 0.85
+spm_pos_x += 0.25
+
 # find shift to sync signals
 
 ## for log 2023-06-01_10-58-29
@@ -195,11 +200,16 @@ plt.ylabel('Deviation [cm]')
 
 fig2.add_subplot(2, 2, 4, title="Absolute difference in yaw-angle")
 plt.plot(time_visual[signal_begin:sync_begin],
-         abs(unfiltered_psi[signal_begin:sync_begin] - signal_mocap_psi_resampled[signal_begin:sync_begin]))
-plt.axhline(np.average(abs(unfiltered_psi[signal_begin:sync_begin] - signal_mocap_psi_resampled[signal_begin:sync_begin])),
+         abs(unfiltered_psi[signal_begin:sync_begin] * 180 / math.pi - signal_mocap_psi_resampled[signal_begin:sync_begin]))
+plt.axhline(np.average(abs((unfiltered_psi[signal_begin:sync_begin] * 180 / math.pi) - signal_mocap_psi_resampled[signal_begin:sync_begin])),
             linestyle=':', label="Average deviation")
 plt.grid()
 plt.xlabel('Time [s]')
 plt.ylabel('Deviation [°]')
 
 plt.show()
+
+print(np.average(abs(unfiltered_x[signal_begin:sync_begin] - signal_mocap_x_resampled[signal_begin:sync_begin])))
+print(np.average(abs(unfiltered_y[signal_begin:sync_begin] - signal_mocap_y_resampled[signal_begin:sync_begin])))
+print(np.average(abs(unfiltered_z[signal_begin:sync_begin] - signal_mocap_z_resampled[signal_begin:sync_begin])))
+print(np.average(abs((unfiltered_psi[signal_begin:sync_begin] * 180 / math.pi) - signal_mocap_psi_resampled[signal_begin:sync_begin])))

@@ -42,7 +42,7 @@ LOW_BAT = 3.0
 URI = uri_helper.uri_from_env(default='radio://0/100/2M/E7E7E7E701')
 
 # default height of takeoff
-TAKEOFF_HEIGHT = 0.8
+TAKEOFF_HEIGHT = 0.5
 
 # highest used marker id, start from id=0
 # marker type must be aruco original dictionary
