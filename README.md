@@ -155,7 +155,7 @@ DISTANCE = np.array([0, 0, 75])  # [cm]
 This ID can be set in the crazyflie client (https://github.com/bitcraze/crazyflie-clients-python).
 
 
-The ```TAKEOFF_HEIGHT``` is the initial height the crazyflie hovers after
+```TAKEOFF_HEIGHT``` is the initial height the crazyflie hovers after
 startup. (E.g., set to height of markers)
 
 ```MAX_MARKER_ID``` is the highest ID in th environment. The application
