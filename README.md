@@ -50,7 +50,8 @@ or
 ````python
 static StreamerMode_t streamerMode = JPEG_ENCODING
 ````
-Now application.py can access the image-stream, when the PC is connected to the AI deck wi-fi
+Now application.py can access the image-stream, when the PC is connected to the AI deck Wi-Fi.
+#### Important note: When flashing the AI-deck, only the AI-deck is allowed to be connected to the crazyflie. (Disconnect the Flow-deck first)
 
 ## Python requirements for the main application 
  The following python packages must be installed
@@ -127,24 +128,40 @@ print("Camera calibration loaded")
 
 ### Set constants
 
-In the head of the python code a few constants must be set when setting up 
+In the head of the application.py file a few constants must be set when setting up 
 a new environment for the crazyflie to fly.
 
 ````python
+# if the cf reaches this battery voltage level, it should land
+LOW_BAT = 3.0
+
+# ID of the crazyflie
+URI = uri_helper.uri_from_env(default='radio://0/100/2M/E7E7E7E701')
+
 # default height of takeoff
-TAKEOFF_HEIGHT = 0.8
+TAKEOFF_HEIGHT = 0.5
 
 # highest used marker id, start from id=0
 # marker type must be aruco original dictionary
-MAX_MARKER_ID = 1
+MAX_MARKER_ID = 2
 
 # define destination vector marker <--> crazyflie
 DISTANCE = np.array([0, 0, 75])  # [cm]
 ````
 
+```LOW_BAT``` --> the crazyflie lands if this battery level is reached. 
+
+```URI``` is the ID of the crazyflie.
+This ID can be set in the crazyflie client (https://github.com/bitcraze/crazyflie-clients-python).
+
+
 The ```TAKEOFF_HEIGHT``` is the initial height the crazyflie hovers after
-startup.  ```MAX_MARKER_ID``` is the highest ID in th environment. The application
+startup. (E.g., set to height of markers)
+
+```MAX_MARKER_ID``` is the highest ID in th environment. The application
 always starts searching at ID=0 and proceeds until the maximum id defined. 
+
+
 ```DISTANCE``` is an array that defines the vector (with respect to the center of the marker),
 in which the crazyflie should align in front of every marker. The first value is the translation 
 in  left/right, the second value the translation in up/down and the last (here set to 0.75) is 
@@ -167,3 +184,28 @@ if __name__ == "__main__":
 
 So if a new deck is used, this is the default setting.
 However, it is possible to change these settings on the AI deck if needed. Be sure to also change it in the python code as well.
+
+# Setup for the crazyflie
+
+The crazyflie must be equipped with an AI-deck and a Flow-deck.
+The firmware of crazyflie and both decks should be kept updated always.
+#### Important note: The decks must be updated after each other. Connect always only one deck when updating.
+
+
+
+## Start application
+### If everything is set-up, the following procedure must be performed to start the application.
+
+#### 1) Place markers
+#### 2) Connect computer to AI-deck Wi-Fi
+#### 3) Start application.py in an IDE or with ```python application.py```
+#### 4) Application starts
+    --> Crazyflie takes off
+    --> Crazyflie begins to turn and searches marker with ID = 0
+    --> If marker found, align to marker depending on constant 'DISTANCE'
+    --> Same procedure for next marker until ID = 'MAX_MARKER_ID'
+#### 5) Crazyflie lands
+
+If a marker is not found, or gets outside of the FOV of the camera during the alignment,
+the crazyflie skips the marker after a defined timeout.
+
