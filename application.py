@@ -49,7 +49,7 @@ TAKEOFF_HEIGHT = 0.5
 MAX_MARKER_ID = 2
 
 # define destination vector marker <--> crazyflie
-DISTANCE = np.array([0, 0, 75])  # [cm]
+DISTANCE = np.array([0, 0, 60])  # [cm]
 
 
 def get_cf_data(scf):

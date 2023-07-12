@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # read data
-with open("timing_data/Log_fullTiming_Raw.yaml") as f:
+with open("timing_data/Log_fullTiming_2SPM_Test4.yaml") as f:
     loaded_dict = yaml.safe_load(f)
     cam = loaded_dict.get('camera')
     det = loaded_dict.get('detection')
@@ -12,25 +12,19 @@ with open("timing_data/Log_fullTiming_Raw.yaml") as f:
     cal = loaded_dict.get('calculation')
     exe = loaded_dict.get('execution')
 
-    camera_time_raw = np.array(cam)
+    camRaw = []
+    for c in range(1,len(cam)):
+        if cam[c - 1] != cam[c]:
+            camRaw.append(cam[c])
+
+    camera_time_raw = np.array(camRaw)
+    camera_time_raw = camera_time_raw[0:89]
+
     detection_time_raw = np.array(det)
     estimation_time_raw = np.array(est)
     calculation_time_raw = np.array(cal)
     execution_time_raw = np.array(exe)
 
-with open("timing_data/Log_fullTiming_Jpeg.yaml") as f:
-    loaded_dict = yaml.safe_load(f)
-    cam = loaded_dict.get('camera')
-    det = loaded_dict.get('detection')
-    est = loaded_dict.get('estimation')
-    cal = loaded_dict.get('calculation')
-    exe = loaded_dict.get('execution')
-
-    camera_time_jpg = np.array(cam)
-    detection_time_jpg = np.array(det)
-    estimation_time_jpg = np.array(est)
-    calculation_time_jpg = np.array(cal)
-    execution_time_jpg = np.array(exe)
 
 print("Plotting data loaded")
 
@@ -42,17 +36,10 @@ avg_exe_raw = np.average(execution_time_raw)
 full_time_raw = camera_time_raw + detection_time_raw + estimation_time_raw + calculation_time_raw + execution_time_raw
 avg_full_raw = np.average(full_time_raw)
 
-avg_cam_jpg = np.average(camera_time_jpg)
-avg_det_jpg = np.average(detection_time_jpg)
-avg_est_jpg = np.average(estimation_time_jpg)
-avg_cal_jpg = np.average(calculation_time_jpg)
-avg_exe_jpg = np.average(execution_time_jpg)
-full_time_jpg = camera_time_jpg + detection_time_jpg + estimation_time_jpg + calculation_time_jpg + execution_time_jpg
-avg_full_jpg = np.average(full_time_jpg)
 
 fig = plt.figure(figsize=(20, 10), num='Timing data')
 
-fig.add_subplot(2, 3, 1, title="RTT image acquisition")
+fig.add_subplot(2, 3, 1, title="Image acquisition")
 plt.plot(camera_time_raw)
 # plt.plot(camera_time_jpg, label="jpg data")
 plt.axhline(avg_cam_raw, linestyle=':', label="average raw data")
@@ -119,8 +106,30 @@ print("cal: " + str(avg_cal_raw))
 print("exe: " + str(avg_exe_raw))
 print("full: " + str(avg_full_raw))
 
+fig2 = plt.figure(figsize=(20, 10), num='tim')
+
+fig2.add_subplot(2, 1, 1, title="Time of subtasks")
+plt.plot(camera_time_raw, label="Image acquisition")
+plt.plot(detection_time_raw, label="SPM detection")
+plt.plot(estimation_time_raw, label="Pose estimation")
+plt.plot(calculation_time_raw, label="Trajectory calculation")
+plt.plot(execution_time_raw, label="Trajectory execution")
+plt.legend()
+plt.grid()
+plt.xlabel('Samples [n]')
+plt.ylabel('Time [s]')
+
+fig2.add_subplot(2, 1, 2, title="Time of full task")
+plt.plot(full_time_raw, label="Image acquisition")
+plt.legend()
+plt.grid()
+plt.xlabel('Samples [n]')
+plt.ylabel('Time [s]')
 
 
 plt.show()
+
+for i in full_time_raw:
+    print(round(i, 4))
 
 

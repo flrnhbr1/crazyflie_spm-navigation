@@ -20,7 +20,7 @@ avg_raw = np.average(rtt_raw)
 avg_jpg = np.average(rtt_jpg)
 
 fig = plt.figure(figsize=(20, 10), num='Timing data')
-fig.add_subplot(2, 1, 1, title="RTT image acquisition")
+fig.add_subplot(2, 1, 1, title="Image acquisition time")
 plt.plot(rtt_raw, label="raw data")
 plt.plot(rtt_jpg, label="jpg data")
 plt.axhline(avg_raw, linestyle=':', label="average raw data")

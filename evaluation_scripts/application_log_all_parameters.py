@@ -46,10 +46,10 @@ TAKEOFF_HEIGHT = 0.5
 
 # highest used marker id, start from id=0
 # marker type must be aruco original dictionary
-MAX_MARKER_ID = 0
+MAX_MARKER_ID = 1
 
 # define destination vector marker <--> crazyflie
-DISTANCE = np.array([0, 0, 75])  # [cm]
+DISTANCE = np.array([0, 0, 100])  # [cm]
 
 
 def get_cf_data(scf):
@@ -400,6 +400,7 @@ if __name__ == "__main__":
     estimation_time = []
     calculation_time = []
     exec_time = []
+    marker_time = []
     timer_start = 0
     temp_timer = 0
 
@@ -453,6 +454,7 @@ if __name__ == "__main__":
             # perform for all defined markers
             start_time_battery = time.time()
             for m in range(0, MAX_MARKER_ID + 1):
+                start_time_marker = time.time()
 
                 # check battery level
                 v_bat = crazyflie.get_battery_level()
@@ -575,7 +577,7 @@ if __name__ == "__main__":
                                             exec_time.append(time.time() - timer_start)
                                             v_bat = crazyflie.get_battery_level()
                                             battery_level.append(v_bat)
-                                            print("Battery-level OK [Voltage = " + str(round(v_bat, 2)) + "V]")
+                                            #print("Battery-level OK [Voltage = " + str(round(v_bat, 2)) + "V]")
                                             elapsed_time = time.time() - start_time_battery  # timer for loop iteration
                                             time_stamp_battery.append(elapsed_time)
 
@@ -587,63 +589,66 @@ if __name__ == "__main__":
                             # print("RTT:" + str(time.time() - start_time))
 
                         crazyflie.stop()  # stop any motion
+                        marker_time.append("Marker:" + str(m))
+                        marker_time.append(time.time() - start_time_marker)
 
-                        if m == MAX_MARKER_ID:  # sync peak only after last marker
+
+                        counter = 0
+                        while counter < 10:
+                            marker_ids, marker_corners = spm.detect_marker(image)
+                            trans_vec, rot_vec, euler_angles = spm.estimate_marker_pose(marker_corners[d],
+                                                                                        marker_size, matrix,
+                                                                                        distortion)
                             # append measured values to moving average filter
-                            counter = 0
-                            while counter < 20:
+                            motion_filter.append(trans_vec, euler_angles)
+                            counter += 1
+
+                        counter = 0
+                        while counter < 10:
+                            crazyflie.move(-0.05, 0, 0)
+                            marker_ids = None
+                            while marker_ids is None:
+                                print("search")
                                 marker_ids, marker_corners = spm.detect_marker(image)
-                                trans_vec, rot_vec, euler_angles = spm.estimate_marker_pose(marker_corners[d],
-                                                                                            marker_size, matrix,
-                                                                                            distortion)
-                                # append measured values to moving average filter
-                                motion_filter.append(trans_vec, euler_angles)
-                                counter += 1
 
-                            counter = 0
-                            while counter < 20:
-                                crazyflie.move(-0.05, 0, 0)
-                                marker_ids = None
-                                while marker_ids is None:
-                                    print("search")
-                                    marker_ids, marker_corners = spm.detect_marker(image)
+                            trans_vec, rot_vec, euler_angles = spm.estimate_marker_pose(marker_corners[d],
+                                                                                        marker_size, matrix,
+                                                                                        distortion)
+                            # append measured values to moving average filter
+                            motion_filter.append(trans_vec, euler_angles)
+                            counter += 1
 
-                                trans_vec, rot_vec, euler_angles = spm.estimate_marker_pose(marker_corners[d],
-                                                                                            marker_size, matrix,
-                                                                                            distortion)
-                                # append measured values to moving average filter
-                                motion_filter.append(trans_vec, euler_angles)
-                                counter += 1
-
-                            counter = 0
-                            while counter < 20:
-                                crazyflie.move(0.05, 0, 0)
-                                marker_ids = None
-                                while marker_ids is None:
-                                    print("search")
-                                    marker_ids, marker_corners = spm.detect_marker(image)
-                                trans_vec, rot_vec, euler_angles = spm.estimate_marker_pose(marker_corners[d],
-                                                                                            marker_size, matrix,
-                                                                                            distortion)
-                                # append measured values to moving average filter
-                                motion_filter.append(trans_vec, euler_angles)
-                                counter += 1
-
-                            counter = 0
-                            while counter < 20:
+                        counter = 0
+                        while counter < 10:
+                            crazyflie.move(0.05, 0, 0)
+                            marker_ids = None
+                            while marker_ids is None:
+                                print("search")
                                 marker_ids, marker_corners = spm.detect_marker(image)
-                                trans_vec, rot_vec, euler_angles = spm.estimate_marker_pose(marker_corners[d],
-                                                                                            marker_size, matrix,
-                                                                                            distortion)
-                                # append measured values to moving average filter
-                                motion_filter.append(trans_vec, euler_angles)
-                                counter += 1
+                            trans_vec, rot_vec, euler_angles = spm.estimate_marker_pose(marker_corners[d],
+                                                                                        marker_size, matrix,
+                                                                                        distortion)
+                            # append measured values to moving average filter
+                            motion_filter.append(trans_vec, euler_angles)
+                            counter += 1
+
+                        counter = 0
+                        while counter < 10:
+                            marker_ids, marker_corners = spm.detect_marker(image)
+                            trans_vec, rot_vec, euler_angles = spm.estimate_marker_pose(marker_corners[d],
+                                                                                        marker_size, matrix,
+                                                                                        distortion)
+                            # append measured values to moving average filter
+                            motion_filter.append(trans_vec, euler_angles)
+                            counter += 1
 
                         aligned = True
                         print("----> Aligned to marker with id=" + str(m))
                         time.sleep(2)  # wait 2 seconds
-                        # crazyflie.back(0.6)  # backup before searching for next marker
+                        #crazyflie.back(0.6)  # backup before searching for next marker
+
                         break  # break loop --> go to next marker
+
 
                 if not aligned:
                     print("Could not align to marker with id=" + str(m) + "!")
@@ -748,7 +753,7 @@ if __name__ == "__main__":
             filename = "Log_" + str(t.year) + "-" + str(t.month) + "-" + str(t.day) + "T" + str(t.hour) + "-" + \
                        str(t.minute) + "-" + str(t.second)
 
-            path = "plot/filter_data/" + filename + ".yaml"
+            path = "../plot/filter_data/" + filename + ".yaml"
             print("Save data...")
 
             with open(path, "w") as f:
@@ -761,8 +766,6 @@ if __name__ == "__main__":
             data = {'battery': np.asarray(battery_level).tolist(),
                     'time': np.asarray(time_stamp_battery).tolist(),
                     }
-
-            t = datetime.datetime.now()
             filename = "Log_" + str(t.year) + "-" + str(t.month) + "-" + str(t.day) + "T" + str(t.hour) + "-" + \
                        str(t.minute) + "-" + str(t.second) + "withAI"
 
@@ -782,7 +785,6 @@ if __name__ == "__main__":
                     'execution': np.asarray(exec_time).tolist()
                     }
 
-            t = datetime.datetime.now()
             filename = "Log_fullTiming_" + str(t.year) + "-" + str(t.month) + "-" + str(t.day) + "T" + str(
                 t.hour) + "-" + \
                        str(t.minute) + "-" + str(t.second)
@@ -794,3 +796,21 @@ if __name__ == "__main__":
                 yaml.dump(data, f)
 
             print("Timing log saved!")
+
+            ################ --------------------------------------------------------------------------------------------
+
+            data = {'marker_times': np.asarray(marker_time).tolist(),
+                    }
+
+            filename = "Log_markerTiming_" + str(t.year) + "-" + str(t.month) + "-" + str(t.day) + "T" + str(
+                t.hour) + "-" + \
+                       str(t.minute) + "-" + str(t.second)
+
+            path = "../plot/timing_data/" + filename + ".yaml"
+            print("Save data...")
+
+            with open(path, "w") as f:
+                yaml.dump(data, f)
+
+            print("Marker timing log saved!")
+

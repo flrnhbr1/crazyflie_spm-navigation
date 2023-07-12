@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # read data
-with open("battery_data/Log_2023-4-30T12-38-56_withAI.yaml") as f:
+with open("battery_data/Log_2023-7-5T13-40-12withAI.yaml") as f:
     loaded_dict = yaml.safe_load(f)
     bat = loaded_dict.get('battery')
     tim = loaded_dict.get('time')
@@ -12,7 +12,7 @@ with open("battery_data/Log_2023-4-30T12-38-56_withAI.yaml") as f:
     battery_AI = np.array(bat)
     time_AI = np.array(tim)
 
-with open("battery_data/Log_2023-4-30T14-28-16_noAI.yaml") as f:
+with open("battery_data/Log_2023-7-5T14-56-28withAI.yaml") as f:
     loaded_dict = yaml.safe_load(f)
     bat = loaded_dict.get('battery')
     tim = loaded_dict.get('time')
@@ -60,27 +60,30 @@ for i in avg_battery_noAI:
     percentage = ((i-min_noAI) / (max_noAI-min_noAI))*100
     battery_percent_noAI.append(percentage)
 
+time_AI = time_AI[0:len(time_AI)-2]
+
 print("Plotting data loaded")
 
 fig = plt.figure(figsize=(20, 10), num='Battery data')
 fig.add_subplot(2, 1, 1, title="Battery voltage over time")
-plt.plot(avg_battery_AI, label="with AI deck")
-plt.plot(avg_battery_noAI, label="without AI deck")
+plt.plot(time_AI, avg_battery_AI)
 
-plt.legend()
 plt.grid()
 plt.xlabel('Time [s]')
 plt.ylabel('Voltage [V]')
 
-fig.add_subplot(2, 1, 2, title="Battery percentage over time")
-plt.plot(battery_percent_AI, label="with AI deck")
-plt.plot(battery_percent_noAI, label="without AI deck")
-
-plt.legend()
-plt.grid()
-plt.xlabel('Time [s]')
-plt.ylabel('Battery Level [%]')
+# fig.add_subplot(2, 1, 2, title="Battery percentage over time")
+# plt.plot(time_AI, battery_percent_AI, label="with AI deck")
+# plt.plot(time_AI, battery_percent_noAI, label="without AI deck")
+#
+# plt.legend()
+# plt.grid()
+# plt.xlabel('Time [s]')
+# plt.ylabel('Battery Level [%]')
 
 
 
 plt.show()
+
+print(np.array(avg_battery_AI, float))
+print(np.array(time_AI, float))

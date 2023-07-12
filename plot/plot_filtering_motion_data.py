@@ -8,7 +8,7 @@ def plot_motion_data():
     # plot motion data
     fig = plt.figure(figsize=(20, 10), num='Motion data')
 
-    fig.add_subplot(2, 2, 1, title="Translation in x (forward/backward)")
+    fig.add_subplot(2, 2, 1, title="Relative position in x (forward/backward)")
     plt.plot(unfiltered_x, label="Measured signal")
     # plt.plot(filtered_x, label="Signal after MA filter")
     plt.plot(w_filtered_x, label="Filtered signal (WMA)", color="tab:green")
@@ -18,7 +18,7 @@ def plot_motion_data():
     plt.xlabel('Samples [n]')
     plt.ylabel('Distance [cm]')
 
-    fig.add_subplot(2, 2, 2, title="Translation in y (left/right)")
+    fig.add_subplot(2, 2, 2, title="Relative position in y (left/right)")
     plt.plot(unfiltered_y, label="Measured signal")
     # plt.plot(filtered_y, label="Signal after MA filter")
     plt.plot(w_filtered_y, label="Filtered signal (WMA)", color="tab:green")
@@ -28,7 +28,7 @@ def plot_motion_data():
     plt.xlabel('Samples [n]')
     plt.ylabel('Distance [cm]')
 
-    fig.add_subplot(2, 2, 3, title="Translation in z (up/down)")
+    fig.add_subplot(2, 2, 3, title="Relative position in z (up/down)")
     plt.plot(unfiltered_z, label="Measured signal")
     # plt.plot(filtered_z, label="Signal after MA filter")
     plt.plot(w_filtered_z, label="Filtered signal (WMA)", color="tab:green")
@@ -38,7 +38,7 @@ def plot_motion_data():
     plt.xlabel('Samples [n]')
     plt.ylabel('Distance [cm]')
 
-    fig.add_subplot(2, 2, 4, title="Yaw rotation")
+    fig.add_subplot(2, 2, 4, title="Relative orientation of the yaw-angle")
     plt.plot(unfiltered_psi * 180 / math.pi, label="Measured signal")
     plt.plot(filtered_psi * 180 / math.pi, label="Filtered signal (MA)")
     # plt.plot(w_filtered_psi, label="Signal after WMA filter")
@@ -194,7 +194,7 @@ def plot_dev_averages():
 
 window_size = 7
 # read data
-with open("./filter_data/Log_2023-6-14T14-1-48.yaml") as f:
+with open("./filter_data/Log_2SPM_Test4.yaml") as f:
         loaded_dict = yaml.safe_load(f)
         unf_x = loaded_dict.get('unfiltered_x')
         unf_y = loaded_dict.get('unfiltered_y')

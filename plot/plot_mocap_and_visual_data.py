@@ -176,33 +176,45 @@ plt.plot(time_visual[signal_begin:sync_begin],
          abs(unfiltered_x[signal_begin:sync_begin] - signal_mocap_x_resampled[signal_begin:sync_begin]))
 plt.axhline(np.average(abs(unfiltered_x[signal_begin:sync_begin] - signal_mocap_x_resampled[signal_begin:sync_begin])),
             linestyle=':', label="Average deviation")
+plt.text(4.05, 5.7, "Mean="+str(round(np.average(abs(unfiltered_x[signal_begin:sync_begin] - signal_mocap_x_resampled[signal_begin:sync_begin])), 3)),
+         color="tab:blue", fontsize=12)
+plt.ylim(0, 40)
 plt.grid()
 plt.xlabel('Time [s]')
 plt.ylabel('Deviation [cm]')
 
-fig2.add_subplot(2, 2, 2, title="Absolute difference in y-direction")
+fig2.add_subplot(2, 2, 2, title="Absolute deviation in y-direction")
 plt.plot(time_visual[signal_begin:sync_begin],
          abs(unfiltered_y[signal_begin:sync_begin] - signal_mocap_y_resampled[signal_begin:sync_begin]))
 plt.axhline(np.average(abs(unfiltered_y[signal_begin:sync_begin] - signal_mocap_y_resampled[signal_begin:sync_begin])),
             linestyle=':', label="Average deviation")
+plt.text(4.05, 5.7, "Mean="+str(round(np.average(abs(unfiltered_y[signal_begin:sync_begin] - signal_mocap_y_resampled[signal_begin:sync_begin])), 3)),
+         color="tab:blue", fontsize=12)
+plt.ylim(0, 40)
 plt.grid()
 plt.xlabel('Time [s]')
 plt.ylabel('Deviation [cm]')
 
-fig2.add_subplot(2, 2, 3, title="Absolute difference in z-direction")
+fig2.add_subplot(2, 2, 3, title="Absolute deviation in z-direction")
 plt.plot(time_visual[signal_begin:sync_begin],
          abs(unfiltered_z[signal_begin:sync_begin] - signal_mocap_z_resampled[signal_begin:sync_begin]))
 plt.axhline(np.average(abs(unfiltered_z[signal_begin:sync_begin] - signal_mocap_z_resampled[signal_begin:sync_begin])),
             linestyle=':', label="Average deviation")
+plt.text(4.05, 5.7, "Mean="+str(round(np.average(abs(unfiltered_z[signal_begin:sync_begin] - signal_mocap_z_resampled[signal_begin:sync_begin])), 3)),
+         color="tab:blue", fontsize=12)
+plt.ylim(0, 40)
 plt.grid()
 plt.xlabel('Time [s]')
 plt.ylabel('Deviation [cm]')
 
-fig2.add_subplot(2, 2, 4, title="Absolute difference in yaw-angle")
+fig2.add_subplot(2, 2, 4, title="Absolute deviation in yaw-angle")
 plt.plot(time_visual[signal_begin:sync_begin],
          abs(unfiltered_psi[signal_begin:sync_begin] * 180 / math.pi - signal_mocap_psi_resampled[signal_begin:sync_begin]))
 plt.axhline(np.average(abs((unfiltered_psi[signal_begin:sync_begin] * 180 / math.pi) - signal_mocap_psi_resampled[signal_begin:sync_begin])),
             linestyle=':', label="Average deviation")
+plt.text(4.05, 5.7, "Mean="+str(round(np.average(abs((unfiltered_psi[signal_begin:sync_begin] * 180 / math.pi) - signal_mocap_psi_resampled[signal_begin:sync_begin])), 3)),
+         color="tab:blue", fontsize=12)
+plt.ylim(0, 40)
 plt.grid()
 plt.xlabel('Time [s]')
 plt.ylabel('Deviation [°]')
