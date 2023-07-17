@@ -4,6 +4,7 @@ import numpy as np
 
 filename = open('./optitrack_logs/2SPM_Test4_ed.csv')
 
+
 # creating dictreader object
 file = csv.DictReader(filename)
 
